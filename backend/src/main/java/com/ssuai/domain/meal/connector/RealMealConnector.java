@@ -77,11 +77,13 @@ class RealMealConnector implements MealConnector {
     @Override
     public MealResponse fetchMeal(LocalDate date) {
         long startedAt = System.currentTimeMillis();
+        String currentRestaurant = "?";
 
         try {
             List<MealItem> meals = new ArrayList<>();
             List<MealClosure> closures = new ArrayList<>();
             for (MealRestaurant restaurant : RESTAURANTS) {
+                currentRestaurant = restaurant.name();
                 waitForRateLimit();
 
                 Document document = Jsoup.connect(buildMenuUrl(restaurant.code(), date))
@@ -101,27 +103,28 @@ class RealMealConnector implements MealConnector {
                 throw new ConnectorParseException();
             }
 
-            log.debug("connector=meal status=ok http=200 items={} closures={} ms={}",
-                    meals.size(), closures.size(), elapsedMs(startedAt));
+            log.debug("connector=meal status=ok date={} items={} closures={} ms={}",
+                    date, meals.size(), closures.size(), elapsedMs(startedAt));
             return new MealResponse(date, List.copyOf(meals), List.copyOf(closures));
         } catch (SocketTimeoutException exception) {
-            logFailure("timeout", startedAt);
+            logFailure("timeout", currentRestaurant, date, startedAt);
             throw new ConnectorTimeoutException(exception);
         } catch (HttpStatusException exception) {
-            logFailure("http_" + exception.getStatusCode(), startedAt);
+            logFailure("http_" + exception.getStatusCode(), currentRestaurant, date, startedAt);
             throw mapHttpStatus(exception);
         } catch (SelectorParseException exception) {
-            logFailure("parse", startedAt);
+            logFailure("parse", currentRestaurant, date, startedAt);
             throw new ConnectorParseException(exception);
         } catch (ConnectorException exception) {
-            logFailure(exception.getErrorCode().name().toLowerCase(Locale.ROOT), startedAt);
+            logFailure(exception.getErrorCode().name().toLowerCase(Locale.ROOT),
+                    currentRestaurant, date, startedAt);
             throw exception;
         } catch (IOException exception) {
             if (isTimeout(exception)) {
-                logFailure("timeout", startedAt);
+                logFailure("timeout", currentRestaurant, date, startedAt);
                 throw new ConnectorTimeoutException(exception);
             }
-            logFailure("unavailable", startedAt);
+            logFailure("unavailable", currentRestaurant, date, startedAt);
             throw new ConnectorUnavailableException(exception);
         }
     }
@@ -320,8 +323,9 @@ class RealMealConnector implements MealConnector {
         return System.currentTimeMillis() - startedAt;
     }
 
-    private static void logFailure(String reason, long startedAt) {
-        log.warn("connector=meal status=fail reason={} ms={}", reason, elapsedMs(startedAt));
+    private static void logFailure(String reason, String restaurant, LocalDate date, long startedAt) {
+        log.warn("connector=meal status=fail restaurant={} date={} reason={} ms={}",
+                restaurant, date, reason, elapsedMs(startedAt));
     }
 
     private record MealRestaurant(String code, String name) {
