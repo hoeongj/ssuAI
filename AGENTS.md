@@ -67,11 +67,32 @@ Codex CLI is used for:
 - applying review feedback
 - making minimal code changes
 
+## Hand-off Convention (Claude → Codex)
+
+The developer uses Claude Code as architect/reviewer and Codex CLI as implementer. Per-task instructions from Claude live in **one rolling file**:
+
+- Path: `.codex/current-task.md` (project root, gitignored — transient).
+- Claude writes the next task into this file. The previous content is overwritten.
+- The developer's message to Codex is always the same one-liner:
+
+  > Read `.codex/current-task.md` and execute it. Reply using the Required Output Format below.
+
+- For full feature specs (e.g., a new domain slice), Claude writes the spec to `docs/tasks/<NN>-<name>.md` (committed), and `.codex/current-task.md` becomes a short pointer:
+
+  ```
+  Implement docs/tasks/02-meal-mock-api.md.
+  Reply using the Required Output Format in AGENTS.md.
+  ```
+
+- For small patches (one-off fixes, follow-up edits), Claude writes the full instructions inline in `.codex/current-task.md` — no separate `docs/tasks/` entry needed.
+
+Codex MUST read `.codex/current-task.md` at the start of every session triggered by the one-liner above, before touching any code.
+
 ## Working Rules for Codex
 
 When working on this repository:
 
-1. Read this AGENTS.md before starting.
+1. Read this AGENTS.md before starting. If the developer's message references `.codex/current-task.md`, read that file too.
 2. Work on one small feature at a time.
 3. Prefer small diffs.
 4. Do not implement the whole project at once.
@@ -80,10 +101,36 @@ When working on this repository:
 7. Do not change documentation files unless explicitly asked.
 8. If mock data is used, clearly label it as mock data.
 9. Do not store secrets, passwords, cookies, tokens, or session values in the repository.
-10. After code changes, summarize:
-- changed files
-- what changed
-- how to verify the change
+10. After code changes, follow the **Required Output Format** below. This is mandatory for every task that touches files.
+
+## Required Output Format
+
+Every response that creates, modifies, or deletes files MUST end with these two sections, in this exact order:
+
+### 1. Work Summary
+A short description (1–3 sentences) of what was done and why. Mention any non-obvious decisions. Do NOT paste full diffs here.
+
+### 2. File List
+List every file touched, grouped by action. Use absolute or repo-relative paths. Omit a group if it is empty.
+
+```
+Created:
+- backend/src/main/java/com/ssuai/...
+
+Modified:
+- backend/build.gradle
+- backend/src/main/resources/application.yml
+
+Deleted:
+- backend/src/main/java/com/ssuai/global/web/HelloController.java
+```
+
+Rules for the File List:
+- List EVERY file touched, including config files, tests, and resources.
+- Do not summarize as "and 3 other test files" — list them all.
+- If no files were touched (e.g., a question-only response), write `No files changed.` instead of the list.
+
+This format is mandatory even for one-file edits. The reviewer (Claude / the developer) relies on this list to know which files to read without scanning the full diff.
 
 ## Recommended Tech Stack
 

@@ -11,6 +11,9 @@ Thumbs.db
 # Claude Code local settings
 .claude/
 
+# Codex hand-off scratch (transient task prompts written by Claude, read by Codex)
+.codex/
+
 # Local env
 .env
 .env.*
