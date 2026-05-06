@@ -12,11 +12,16 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 
+// Export-only one-shot runner. Calls SpringApplication.exit() after writing the
+// JSON, so it MUST NOT activate inside the dev/prod API server — both gates
+// (export profile + enabled flag) must be set on purpose.
 @Component
+@Profile("export")
 @ConditionalOnProperty(name = "ssuai.meal.export.enabled", havingValue = "true")
 class WeeklyMealExportRunner implements ApplicationRunner {
 
