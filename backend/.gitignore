@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+build/
+.gradle/
+.idea/
+out/
+*.log
+*.pem
+*.key
+secrets/
+**/application-prod.yml
+*.dump
+*.sql.gz
