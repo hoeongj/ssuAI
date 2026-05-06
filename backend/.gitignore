@@ -10,6 +10,9 @@ out/
 *.key
 secrets/
 **/application-prod.yml
+# The committed src/main/resources/application-prod.yml is the *baseline*
+# (no secrets — see docs/security.md §3 and the header comment in the file).
+# Local overrides with secrets stay out via the rule above.
 !src/main/resources/application-prod.yml
 *.dump
 *.sql.gz
