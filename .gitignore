@@ -27,6 +27,13 @@ dist/
 # Logs
 *.log
 
+# Local crawl/export artifacts
+.tmp/
+exports/
+backend/exports/
+backend/meals.json
+backend/weekly-meals-*.json
+
 # Secrets
 *.pem
 *.key
