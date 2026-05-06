@@ -1,3 +1,4 @@
 ssuai:
   connector:
     meal: real
+    dorm-meal: real

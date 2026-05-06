@@ -16,3 +16,4 @@ management:
 ssuai:
   connector:
     meal: mock # mock | real (real implemented in Task 03)
+    dorm-meal: mock # mock | real (real implemented in Task 04)
