@@ -1,0 +1,30 @@
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Build artifacts (per-language .gitignore exists in backend/, frontend/, etc.)
+build/
+out/
+dist/
+
+# Logs
+*.log
+
+# Secrets
+*.pem
+*.key
+secrets/
