@@ -5,6 +5,10 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-07
 
+- 2026-05-07: Task 05 frontend MVP - Next.js dashboard + 4 cards, local
+  integration. API envelope unwrap + per-card loading/error/empty states and
+  dev-only CORS completed.
+
 - meal fan-out 성능 개선: weekly export 1분 22초 → 26초.
   원인은 `RealMealConnector` 의 `synchronized` + 단일 `lastCallAtMs` 가 같은
   connector 인스턴스의 모든 식당 호출을 1초 간격으로 전역 직렬화한 것. rate-limit
