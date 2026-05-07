@@ -7,6 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.mockwebserver.MockResponse;
@@ -150,8 +154,109 @@ class RealMealConnectorHttpTests {
                 });
     }
 
+    @Test
+    void fetchMealPreservesClosureRowsWhenOtherRowsHaveMeals() {
+        server.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "text/plain; charset=utf-8")
+                .setBody("""
+                        <table>
+                            <tr>
+                                <td class="menu_nm">중식1</td>
+                                <td class="menu_list">쌀밥<br>미역국</td>
+                            </tr>
+                            <tr>
+                                <td class="menu_nm">석식1</td>
+                                <td class="menu_list">오늘은 쉽니다.</td>
+                            </tr>
+                        </table>
+                        """));
+        RealMealConnector connector = connectorWithTimeout(5_000);
+
+        MealResponse response = connector.fetchMeal(DATE, MealRestaurant.STUDENT);
+
+        assertThat(response.meals())
+                .singleElement()
+                .satisfies(meal -> {
+                    assertThat(meal.corner()).isEqualTo("중식1");
+                    assertThat(meal.menu()).containsExactly("쌀밥", "미역국");
+                });
+        assertThat(response.closures())
+                .singleElement()
+                .satisfies(closure -> {
+                    assertThat(closure.restaurant()).isEqualTo("학생식당");
+                    assertThat(closure.reason()).isEqualTo("오늘은 쉽니다.");
+                });
+    }
+
+    @Test
+    void fetchMealRateLimitsRepeatedCallsForSameRestaurantCode() throws Exception {
+        server.enqueue(successResponse());
+        server.enqueue(successResponse());
+        RealMealConnector connector = new RealMealConnector(
+                server.url("/m/m_req/m_menu.php").toString(), 200L, 5_000);
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<MealResponse> first = executorService.submit(() -> fetchAfterStart(connector, start, MealRestaurant.STUDENT));
+            Future<MealResponse> second = executorService.submit(() -> fetchAfterStart(connector, start, MealRestaurant.STUDENT));
+
+            long startedAt = System.nanoTime();
+            start.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+            assertThat(elapsedMs).isGreaterThanOrEqualTo(150L);
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    void fetchMealDoesNotRateLimitDifferentRestaurantCodesAgainstEachOther() throws Exception {
+        server.enqueue(successResponse());
+        server.enqueue(successResponse());
+        RealMealConnector connector = new RealMealConnector(
+                server.url("/m/m_req/m_menu.php").toString(), 1_000L, 5_000);
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<MealResponse> student = executorService.submit(() -> fetchAfterStart(connector, start, MealRestaurant.STUDENT));
+            Future<MealResponse> dodam = executorService.submit(() -> fetchAfterStart(connector, start, MealRestaurant.DODAM));
+
+            long startedAt = System.nanoTime();
+            start.countDown();
+            student.get(5, TimeUnit.SECONDS);
+            dodam.get(5, TimeUnit.SECONDS);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+            assertThat(elapsedMs).isLessThan(900L);
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
     private RealMealConnector connectorWithTimeout(int timeoutMs) {
         return new RealMealConnector(server.url("/m/m_req/m_menu.php").toString(), 0L, timeoutMs);
+    }
+
+    private static MealResponse fetchAfterStart(
+            RealMealConnector connector,
+            CountDownLatch start,
+            MealRestaurant restaurant
+    ) throws Exception {
+        start.await(5, TimeUnit.SECONDS);
+        return connector.fetchMeal(DATE, restaurant);
+    }
+
+    private static MockResponse successResponse() {
+        return new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "text/plain; charset=utf-8")
+                .setBody(fixtureUnchecked());
     }
 
     private static String fixture() throws Exception {

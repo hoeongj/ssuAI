@@ -1,9 +1,11 @@
 package com.ssuai.domain.meal.service;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +17,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import com.ssuai.domain.dorm.service.DormMealService;
 import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 
 // Export-only one-shot runner. Calls SpringApplication.exit() after writing the
@@ -30,17 +33,23 @@ class WeeklyMealExportRunner implements ApplicationRunner {
     private static final String DEFAULT_OUTPUT_DIRECTORY = "exports/meal";
 
     private final WeeklyMealExportService weeklyMealExportService;
+    private final DormMealService dormMealService;
+    private final ObjectMapper objectMapper;
     private final ApplicationContext applicationContext;
     private final String configuredStartDate;
     private final String configuredOutputPath;
 
     WeeklyMealExportRunner(
             WeeklyMealExportService weeklyMealExportService,
+            DormMealService dormMealService,
+            ObjectMapper objectMapper,
             ApplicationContext applicationContext,
             @Value("${ssuai.meal.export.start-date:}") String configuredStartDate,
             @Value("${ssuai.meal.export.output:}") String configuredOutputPath
     ) {
         this.weeklyMealExportService = weeklyMealExportService;
+        this.dormMealService = dormMealService;
+        this.objectMapper = objectMapper;
         this.applicationContext = applicationContext;
         this.configuredStartDate = configuredStartDate;
         this.configuredOutputPath = configuredOutputPath;
@@ -51,12 +60,23 @@ class WeeklyMealExportRunner implements ApplicationRunner {
         LocalDate startDate = resolveStartDate();
         Path outputPath = resolveOutputPath(startDate);
 
-        WeeklyMealResponse response = weeklyMealExportService.exportWeeklyMeals(startDate, outputPath);
+        WeeklyMealResponse response = weeklyMealExportService.fetchWeeklyMeals(startDate);
+        WeeklyMealResponse dormResponse = dormMealService.getThisWeekMeal();
+        Path dormOutputPath = resolveDormOutputPath(dormResponse);
+
+        writeJson(outputPath, response);
         log.info("meal weekly export written: path={} startDate={} endDate={} days={}",
                 outputPath.toAbsolutePath().normalize(),
                 response.startDate(),
                 response.endDate(),
                 response.days().size());
+
+        writeJson(dormOutputPath, dormResponse);
+        log.info("dorm-meal weekly export written: path={} startDate={} endDate={} days={}",
+                dormOutputPath.toAbsolutePath().normalize(),
+                dormResponse.startDate(),
+                dormResponse.endDate(),
+                dormResponse.days().size());
 
         SpringApplication.exit(applicationContext, () -> 0);
     }
@@ -74,5 +94,18 @@ class WeeklyMealExportRunner implements ApplicationRunner {
         }
         LocalDate endDate = startDate.plusDays(6);
         return Path.of(DEFAULT_OUTPUT_DIRECTORY, "weekly-meals-" + startDate + "_" + endDate + ".json");
+    }
+
+    private static Path resolveDormOutputPath(WeeklyMealResponse response) {
+        return Path.of(DEFAULT_OUTPUT_DIRECTORY,
+                "weekly-dorm-meals-" + response.startDate() + "_" + response.endDate() + ".json");
+    }
+
+    private void writeJson(Path outputPath, WeeklyMealResponse response) throws Exception {
+        Path parent = outputPath.toAbsolutePath().normalize().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), response);
     }
 }

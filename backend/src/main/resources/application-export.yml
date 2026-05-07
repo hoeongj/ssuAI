@@ -1,4 +1,4 @@
-# Export profile — one-shot weekly meal JSON export, NOT the API server.
+# Export profile — one-shot weekly meal + dorm meal JSON export, NOT the API server.
 # Activate with: --spring.profiles.active=export
 # WeeklyMealExportRunner will call SpringApplication.exit() after writing,
 # so this profile must never be combined with the API server runtime.

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -71,11 +72,41 @@ class MealServiceTests {
         assertThat(response.meals())
                 .hasSize(MealRestaurant.values().length)
                 .extracting(MealItem::restaurant)
-                .containsExactlyInAnyOrder(
+                .containsExactly(
                         "학생식당", "숭실도담식당", "스낵코너", "푸드코트", "THE KITCHEN", "FACULTY LOUNGE");
         assertThat(response.closures()).isEmpty();
         verify(mealConnector, times(MealRestaurant.values().length))
                 .fetchMeal(eq(DATE), any(MealRestaurant.class));
+    }
+
+    @Test
+    void getMealFetchesRestaurantsInParallel() {
+        AtomicInteger activeCalls = new AtomicInteger();
+        AtomicInteger maxActiveCalls = new AtomicInteger();
+        MealConnector slowConnector = (date, restaurant) -> {
+            int currentActiveCalls = activeCalls.incrementAndGet();
+            maxActiveCalls.accumulateAndGet(currentActiveCalls, Math::max);
+            try {
+                Thread.sleep(75);
+                return new MealResponse(
+                        date,
+                        List.of(new MealItem(
+                                restaurant.displayName(),
+                                MealType.LUNCH,
+                                "중식",
+                                List.of("밥"))));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new ConnectorUnavailableException(exception);
+            } finally {
+                activeCalls.decrementAndGet();
+            }
+        };
+
+        MealResponse response = new MealService(slowConnector).getMeal(DATE);
+
+        assertThat(response.meals()).hasSize(MealRestaurant.values().length);
+        assertThat(maxActiveCalls.get()).isGreaterThan(1);
     }
 
     @Test
@@ -111,11 +142,18 @@ class MealServiceTests {
 
     @Test
     void getMealRethrowsWhenAllRestaurantsFail() {
+        ConnectorParseException lastFailure = new ConnectorParseException();
         when(mealConnector.fetchMeal(eq(DATE), any(MealRestaurant.class)))
-                .thenThrow(new ConnectorParseException());
+                .thenAnswer(invocation -> {
+                    MealRestaurant restaurant = invocation.getArgument(1);
+                    if (restaurant == MealRestaurant.FACULTY_LOUNGE) {
+                        throw lastFailure;
+                    }
+                    throw new ConnectorUnavailableException();
+                });
 
         assertThatThrownBy(() -> mealService.getMeal(DATE))
-                .isInstanceOf(ConnectorParseException.class);
+                .isSameAs(lastFailure);
     }
 
     private static MealResponse emptyResponse(LocalDate date) {

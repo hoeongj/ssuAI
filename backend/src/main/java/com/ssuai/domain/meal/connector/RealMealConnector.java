@@ -12,6 +12,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 import org.jsoup.HttpStatusException;
@@ -55,7 +57,8 @@ class RealMealConnector implements MealConnector {
     private final String menuUrl;
     private final long minIntervalMs;
     private final int timeoutMs;
-    private long lastCallAtMs;
+    private final ConcurrentMap<String, Object> rateLimitLocksByRcd = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Long> lastCallAtMsByRcd = new ConcurrentHashMap<>();
 
     RealMealConnector() {
         this(DEFAULT_MENU_URL, DEFAULT_MIN_INTERVAL_MS, DEFAULT_TIMEOUT_MS);
@@ -73,7 +76,7 @@ class RealMealConnector implements MealConnector {
         String displayName = restaurant.displayName();
 
         try {
-            waitForRateLimit();
+            waitForRateLimit(restaurant.code());
 
             Document document = Jsoup.connect(buildMenuUrl(restaurant.code(), date))
                     .userAgent(USER_AGENT)
@@ -82,9 +85,7 @@ class RealMealConnector implements MealConnector {
                     .get();
 
             List<MealItem> meals = parseMealItems(displayName, document, false);
-            List<MealClosure> closures = meals.isEmpty()
-                    ? parseClosure(displayName, document).map(List::of).orElse(List.of())
-                    : List.of();
+            List<MealClosure> closures = parseClosures(displayName, document);
 
             if (meals.isEmpty() && closures.isEmpty()) {
                 throw new ConnectorParseException();
@@ -158,14 +159,17 @@ class RealMealConnector implements MealConnector {
         return List.copyOf(meals);
     }
 
-    private static Optional<MealClosure> parseClosure(String restaurant, Document document) {
+    private static List<MealClosure> parseClosures(String restaurant, Document document) {
+        Set<String> reasons = new LinkedHashSet<>();
         for (Element cell : document.select("tr > td[colspan=2], td.menu_list")) {
             String reason = normalizeWhitespace(cell.text());
             if (isClosureReason(reason)) {
-                return Optional.of(new MealClosure(restaurant, reason));
+                reasons.add(reason);
             }
         }
-        return Optional.empty();
+        return reasons.stream()
+                .map(reason -> new MealClosure(restaurant, reason))
+                .toList();
     }
 
     private String buildMenuUrl(String restaurantCode, LocalDate date) {
@@ -173,18 +177,22 @@ class RealMealConnector implements MealConnector {
         return menuUrl + separator + "rcd=" + restaurantCode + "&sdt=" + MENU_DATE_FORMATTER.format(date);
     }
 
-    private synchronized void waitForRateLimit() {
-        long now = System.currentTimeMillis();
-        long waitMs = minIntervalMs - (now - lastCallAtMs);
-        if (lastCallAtMs > 0L && waitMs > 0L) {
-            try {
-                Thread.sleep(waitMs);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new ConnectorUnavailableException(exception);
+    private void waitForRateLimit(String rcd) {
+        Object lock = rateLimitLocksByRcd.computeIfAbsent(rcd, key -> new Object());
+        synchronized (lock) {
+            long now = System.currentTimeMillis();
+            long lastCallAtMs = lastCallAtMsByRcd.getOrDefault(rcd, 0L);
+            long waitMs = minIntervalMs - (now - lastCallAtMs);
+            if (lastCallAtMs > 0L && waitMs > 0L) {
+                try {
+                    Thread.sleep(waitMs);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new ConnectorUnavailableException(exception);
+                }
             }
+            lastCallAtMsByRcd.put(rcd, System.currentTimeMillis());
         }
-        lastCallAtMs = System.currentTimeMillis();
     }
 
     private static List<String> extractMenu(Element menuCell) {
