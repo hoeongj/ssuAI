@@ -1,0 +1,34 @@
+package com.ssuai.domain.mcp.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+@ActiveProfiles("test")
+@SpringBootTest
+class McpServerConfigTests {
+
+    private final ToolCallbackProvider toolCallbackProvider;
+
+    McpServerConfigTests(@Qualifier("ssuaiMcpTools") ToolCallbackProvider toolCallbackProvider) {
+        this.toolCallbackProvider = toolCallbackProvider;
+    }
+
+    @Test
+    void registersSsuaiMcpTools() {
+        assertThat(Arrays.stream(toolCallbackProvider.getToolCallbacks())
+                .map(callback -> callback.getToolDefinition().name())
+                .toList())
+                .containsExactlyInAnyOrder(
+                        "get_today_meal",
+                        "get_meal_by_date",
+                        "get_dorm_weekly_meal",
+                        "search_campus_facilities");
+    }
+}
