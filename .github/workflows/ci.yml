@@ -32,7 +32,31 @@ jobs:
           path: backend/build/reports/tests/test
           retention-days: 7
 
-# Frontend job intentionally omitted — added in Task 05 once
-# frontend/package.json + pnpm-lock.yaml exist. Gating it via
-# `hashFiles()` + `cache-dependency-path` to a non-existent file
-# triggered "workflow file issue" validation failures.
+  frontend:
+    name: Frontend (pnpm, Node 20)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SSUAI_API_BASE: http://localhost:8080
