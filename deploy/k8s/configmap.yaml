@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ssuai-backend-config
+  namespace: ssuai-prod
+  labels:
+    app.kubernetes.io/name: ssuai-backend
+    app.kubernetes.io/part-of: ssuai
+data:
+  # Activates application-prod.yml on top of application.yml.
+  SPRING_PROFILES_ACTIVE: "prod"
+
+  # Production CORS allowlist. Replace with the real Vercel project
+  # origin (no trailing slash). Read by WebCorsConfig under @Profile("prod").
+  SSUAI_FRONTEND_ORIGIN: "https://ssuai.vercel.app"
+
+  # JVM tuning. MaxRAMPercentage cooperates with the pod memory limit;
+  # G1GC is the JDK 21 default. Override here without rebuilding the image.
+  JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+
+  # Connector flags — production should hit real Soongsil sites. These
+  # are also the defaults in application-prod.yml; the ConfigMap just
+  # makes them visible to operators inspecting the live pod env.
+  SSUAI_CONNECTOR_MEAL: "real"
+  SSUAI_CONNECTOR_DORM_MEAL: "real"
