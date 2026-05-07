@@ -3,12 +3,12 @@
 import { Utensils } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
+import { ErrorState, getErrorStateDetails } from "@/components/shared/ErrorState";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTodayMeal } from "@/hooks/useTodayMeal";
-import { ApiError, type MealItem } from "@/lib/api/types";
+import type { MealItem } from "@/lib/api/types";
 import { formatKoreanDate, mealTypeLabel } from "@/lib/utils";
 
 function groupByRestaurant(meals: MealItem[]) {
@@ -32,7 +32,7 @@ function TodayMealSkeleton() {
 
 export function TodayMealCard() {
   const { data, error, isLoading, refetch } = useTodayMeal();
-  const apiError = error instanceof ApiError ? error : null;
+  const errorState = getErrorStateDetails(error);
   const groupedMeals = data ? groupByRestaurant(data.meals) : {};
   const hasMeals = data ? data.meals.length > 0 : false;
   const hasClosures = data ? data.closures.length > 0 : false;
@@ -48,11 +48,11 @@ export function TodayMealCard() {
       <CardContent>
         {isLoading ? <TodayMealSkeleton /> : null}
 
-        {apiError ? (
+        {errorState ? (
           <ErrorState
-            code={apiError.code}
-            message={apiError.message}
-            traceId={apiError.traceId}
+            code={errorState.code}
+            message={errorState.message}
+            traceId={errorState.traceId}
             onRetry={() => void refetch()}
           />
         ) : null}
