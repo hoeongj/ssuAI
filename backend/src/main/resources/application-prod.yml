@@ -7,3 +7,15 @@ ssuai:
   connector:
     meal: real
     dorm-meal: real
+  # Production CORS allowlist — exactly one origin (the deployed Vercel
+  # project), wired into WebCorsProdConfig. The value is supplied at
+  # deploy time via the SSUAI_FRONTEND_ORIGIN env var (set on the
+  # ssuai-backend-config ConfigMap). Empty default makes the binding
+  # explicit; WebCorsProdConfig fails fast with a clear message if it
+  # ever resolves to blank, per docs/security.md §8.
+  frontend:
+    origin: ${SSUAI_FRONTEND_ORIGIN:}
+
+# JVM tuning: prefer setting JAVA_OPTS on the ConfigMap (e.g.
+# `-XX:+UseG1GC -XX:MaxRAMPercentage=75.0`) so it can be tweaked
+# without a rebuild. The Dockerfile applies JAVA_OPTS via ENTRYPOINT.
