@@ -32,3 +32,6 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 - `docs/mcp-tools.md` (0 bytes 였음) 첫 작성. 사용법 + Claude Desktop SSE
   직접 / `mcp-proxy` 어댑터 / Cursor 등록 + 트러블슈팅 + write tool 정책
   placeholder.
+- ADR 0002~0005 retroactive 작성: meal fan-out 성능, MCP transport SSE 선택,
+  MCP tool 입력 검증 정책, REST/MCP error UX 분리. 향후 큰 결정마다
+  `docs/adr/` 에 archive 시작.
