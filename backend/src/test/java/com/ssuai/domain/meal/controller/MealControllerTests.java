@@ -4,15 +4,19 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -22,7 +26,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.ssuai.domain.meal.dto.MealItem;
 import com.ssuai.domain.meal.dto.MealResponse;
 import com.ssuai.domain.meal.dto.MealType;
+import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 import com.ssuai.domain.meal.service.MealService;
+import com.ssuai.domain.meal.service.WeeklyMealExportService;
 
 @ActiveProfiles("test")
 @WebMvcTest(MealController.class)
@@ -32,6 +38,9 @@ class MealControllerTests {
 
     @MockBean
     private MealService mealService;
+
+    @MockBean
+    private WeeklyMealExportService weeklyMealExportService;
 
     @Autowired
     MealControllerTests(MockMvc mockMvc) {
@@ -56,5 +65,48 @@ class MealControllerTests {
                 .andExpect(jsonPath("$.data.closures").value(empty()))
                 .andExpect(jsonPath("$.error").value(nullValue()))
                 .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+    }
+
+    @Test
+    void getWeeklyMealsWithStartDateReturnsSuccessEnvelope() throws Exception {
+        LocalDate startDate = LocalDate.of(2026, 5, 4);
+        WeeklyMealResponse response = new WeeklyMealResponse(startDate, LocalDate.of(2026, 5, 10), List.of());
+        when(weeklyMealExportService.fetchWeeklyMeals(startDate)).thenReturn(response);
+
+        mockMvc.perform(get("/api/meals/weekly").param("startDate", "2026-05-04"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.startDate").value("2026-05-04"))
+                .andExpect(jsonPath("$.data.endDate").value("2026-05-10"))
+                .andExpect(jsonPath("$.error").value(nullValue()))
+                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+
+        verify(weeklyMealExportService).fetchWeeklyMeals(startDate);
+    }
+
+    @Test
+    void getWeeklyMealsWithoutStartDateDefaultsToMonday() throws Exception {
+        when(weeklyMealExportService.fetchWeeklyMeals(any(LocalDate.class)))
+                .thenAnswer(invocation -> {
+                    LocalDate startDate = invocation.getArgument(0);
+                    return new WeeklyMealResponse(startDate, startDate.plusDays(6), List.of());
+                });
+
+        mockMvc.perform(get("/api/meals/weekly"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.startDate").value(not(isEmptyOrNullString())))
+                .andExpect(jsonPath("$.data.endDate").value(not(isEmptyOrNullString())))
+                .andExpect(jsonPath("$.error").value(nullValue()));
+
+        ArgumentCaptor<LocalDate> captor = ArgumentCaptor.forClass(LocalDate.class);
+        verify(weeklyMealExportService).fetchWeeklyMeals(captor.capture());
+        LocalDate resolved = captor.getValue();
+        org.assertj.core.api.Assertions.assertThat(resolved.getDayOfWeek()).isEqualTo(DayOfWeek.MONDAY);
+    }
+
+    @Test
+    void getWeeklyMealsWithInvalidStartDateReturnsValidationError() throws Exception {
+        mockMvc.perform(get("/api/meals/weekly").param("startDate", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 }

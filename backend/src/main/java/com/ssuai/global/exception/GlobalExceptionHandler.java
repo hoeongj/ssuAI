@@ -151,6 +151,13 @@ public class GlobalExceptionHandler {
         return error(ErrorCode.CONNECTOR_ERROR);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleIllegalArgumentException(
+            IllegalArgumentException exception
+    ) {
+        return validationFailed(exception.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleException(Exception exception) {
         log.error("Unhandled exception occurred: exceptionType={}", exception.getClass().getName(), exception);
