@@ -30,6 +30,24 @@ export function formatKoreanDate(date: string) {
   }).format(new Date(`${date}T00:00:00+09:00`));
 }
 
+export function formatShortKoreanDate(date: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).format(new Date(`${date}T00:00:00+09:00`));
+}
+
+export function getSeoulDateString(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
 export function mealTypeLabel(type: string) {
   switch (type) {
     case "BREAKFAST":
