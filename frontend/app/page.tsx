@@ -1,4 +1,6 @@
+import { DormWeeklyCard } from "@/components/dorm/DormWeeklyCard";
 import { TodayMealCard } from "@/components/meal/TodayMealCard";
+import { WeeklyMealCard } from "@/components/meal/WeeklyMealCard";
 
 export default function Home() {
   return (
@@ -9,6 +11,8 @@ export default function Home() {
       </header>
       <section className="grid gap-4 md:grid-cols-2">
         <TodayMealCard />
+        <WeeklyMealCard />
+        <DormWeeklyCard />
       </section>
     </main>
   );
