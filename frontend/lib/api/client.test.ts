@@ -102,6 +102,14 @@ describe("fetchJson", () => {
     });
   });
 
+  it("propagates network failures as the original error (non-ApiError)", async () => {
+    const { fetchJson } = await importClient();
+    const networkError = new TypeError("Failed to fetch");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(networkError));
+
+    await expect(fetchJson("/api/meals/today")).rejects.toBe(networkError);
+  });
+
   it("throws a clear module-load error when NEXT_PUBLIC_SSUAI_API_BASE is missing", async () => {
     await expect(importClient(null)).rejects.toThrow("NEXT_PUBLIC_SSUAI_API_BASE is required");
   });
