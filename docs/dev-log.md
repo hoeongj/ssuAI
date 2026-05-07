@@ -35,3 +35,6 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 - ADR 0002~0005 retroactive 작성: meal fan-out 성능, MCP transport SSE 선택,
   MCP tool 입력 검증 정책, REST/MCP error UX 분리. 향후 큰 결정마다
   `docs/adr/` 에 archive 시작.
+- 학식 + 기숙사 connector 트러블슈팅 7 사건 retroactive archive
+  (`docs/troubleshooting/cafeteria-connector.md`). 사용자 기억이 흐려진
+  상태라 git history 기반 narrative + 추정 부분 명시.
