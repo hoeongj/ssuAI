@@ -48,6 +48,10 @@ export function getSeoulDateString(now = new Date()) {
   }).format(now);
 }
 
+export function normalizeSearchQuery(query: string) {
+  return query.trim().toLowerCase();
+}
+
 export function mealTypeLabel(type: string) {
   switch (type) {
     case "BREAKFAST":
