@@ -60,3 +60,46 @@ jobs:
         run: pnpm build
         env:
           NEXT_PUBLIC_SSUAI_API_BASE: http://localhost:8080
+
+  image-build:
+    name: Backend image (ghcr.io, ARM64)
+    runs-on: ubuntu-latest
+    needs: backend
+    # Build + push only on push to main. PR runs would publish images that
+    # nothing pulls, so we save ghcr.io storage by gating here.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU (arm64 emulation)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ssuai-backend
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest
+      - name: Build and push (linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: deploy/docker/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
