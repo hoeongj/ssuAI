@@ -8,6 +8,10 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 - 2026-05-07: Task 05 frontend MVP - Next.js dashboard + 4 cards, local
   integration. API envelope unwrap + per-card loading/error/empty states and
   dev-only CORS completed.
+- 2026-05-07: PR #6 review polish — `getErrorStateDetails` 를 `error-state.utils.ts`
+  로 분리해 vitest 가 JSX 안 거치고 unit test 가능하게 함 (`@vitejs/plugin-react`
+  추가 회피). `INVALID_ENVELOPE` 한국어 메시지 추가 + `fetchJson` 네트워크
+  실패 propagation 테스트 + `getErrorStateDetails` 4 케이스 unit test.
 
 - meal fan-out 성능 개선: weekly export 1분 22초 → 26초.
   원인은 `RealMealConnector` 의 `synchronized` + 단일 `lastCallAtMs` 가 같은
