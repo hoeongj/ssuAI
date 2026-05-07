@@ -3,12 +3,11 @@
 import { Building2 } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
+import { ErrorState, getErrorStateDetails } from "@/components/shared/ErrorState";
 import { WeeklyMealStrip } from "@/components/meal/WeeklyMealStrip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDormWeeklyMeal } from "@/hooks/useDormWeeklyMeal";
-import { ApiError } from "@/lib/api/types";
 import { formatShortKoreanDate } from "@/lib/utils";
 
 function DormWeeklySkeleton() {
@@ -26,7 +25,7 @@ function DormWeeklySkeleton() {
 
 export function DormWeeklyCard() {
   const { data, error, isLoading, refetch } = useDormWeeklyMeal();
-  const apiError = error instanceof ApiError ? error : null;
+  const errorState = getErrorStateDetails(error);
   const range = data ? `${formatShortKoreanDate(data.startDate)} - ${formatShortKoreanDate(data.endDate)}` : "이번 주";
 
   return (
@@ -37,11 +36,11 @@ export function DormWeeklyCard() {
       </CardHeader>
       <CardContent>
         {isLoading ? <DormWeeklySkeleton /> : null}
-        {apiError ? (
+        {errorState ? (
           <ErrorState
-            code={apiError.code}
-            message={apiError.message}
-            traceId={apiError.traceId}
+            code={errorState.code}
+            message={errorState.message}
+            traceId={errorState.traceId}
             onRetry={() => void refetch()}
           />
         ) : null}

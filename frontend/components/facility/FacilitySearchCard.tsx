@@ -5,12 +5,11 @@ import { useEffect, useState } from "react";
 
 import { FacilityResultItem } from "@/components/facility/FacilityResultItem";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
+import { ErrorState, getErrorStateDetails } from "@/components/shared/ErrorState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFacilitySearch } from "@/hooks/useFacilitySearch";
-import { ApiError } from "@/lib/api/types";
 import { normalizeSearchQuery } from "@/lib/utils";
 
 function FacilitySkeleton() {
@@ -28,7 +27,7 @@ export function FacilitySearchCard() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const normalizedQuery = normalizeSearchQuery(debouncedQuery);
   const { data, error, isFetching, refetch } = useFacilitySearch(debouncedQuery);
-  const apiError = error instanceof ApiError ? error : null;
+  const errorState = getErrorStateDetails(error);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -66,11 +65,11 @@ export function FacilitySearchCard() {
 
         {normalizedQuery && isFetching && !data ? <FacilitySkeleton /> : null}
 
-        {apiError ? (
+        {errorState ? (
           <ErrorState
-            code={apiError.code}
-            message={apiError.message}
-            traceId={apiError.traceId}
+            code={errorState.code}
+            message={errorState.message}
+            traceId={errorState.traceId}
             onRetry={() => void refetch()}
           />
         ) : null}
