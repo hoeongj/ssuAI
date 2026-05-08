@@ -34,6 +34,9 @@ backend/exports/
 backend/meals.json
 backend/weekly-meals-*.json
 
+# Root-level scratch files (debugging dumps kept locally, never shared)
+/.tmp_*
+
 # Secrets
 *.pem
 *.key
