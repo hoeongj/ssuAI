@@ -101,15 +101,14 @@ think it is.
 
 ### Pre-commit guardrails
 
-Before any secret-handling code is written, add at least one of:
+gitleaks runs in CI (`.github/workflows/security.yml`) on every PR and
+push to `main`. The build fails on any high-confidence secret match.
+Configuration lives in `.gitleaks.toml` (extends the gitleaks default
+rule pack with one allowlist for documentation files).
 
-- A `pre-commit` hook (e.g., `gitleaks`, `detect-secrets`) that scans for
-  high-entropy strings and known credential patterns.
-- A GitHub Actions job that runs the same scanner on every push.
-
-A scanner is not perfect, but it catches the most common mistakes —
-committed `.env`, accidentally pasted API key, forgotten cookie in a test
-fixture.
+For local-time defense before CI, install lefthook (`lefthook install`);
+the pre-commit hook runs `gitleaks protect --staged` so a secret never
+reaches a commit. CI remains the hard gate; the local hook is convenience.
 
 ---
 

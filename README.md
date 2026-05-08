@@ -75,6 +75,24 @@ Why this stack? — see ADRs
 - Node 20+ and pnpm 9+
 - Git
 
+### Local pre-commit hook (optional)
+
+CI runs `gitleaks` on every PR and push to `main`. For local checks before
+committing, install `lefthook` and `gitleaks`, then run `lefthook install`.
+
+```bash
+# macOS
+brew install lefthook gitleaks
+# Windows
+scoop install lefthook gitleaks
+# Linux
+go install github.com/evilmartians/lefthook@latest
+go install github.com/gitleaks/gitleaks/v8@latest
+
+# in the repo
+lefthook install
+```
+
 ### Backend
 
 ```bash

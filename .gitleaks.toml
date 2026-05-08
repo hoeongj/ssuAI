@@ -1,0 +1,16 @@
+[extend]
+# inherit gitleaks default rule pack
+useDefault = true
+
+[[allowlists]]
+description = "ssuAI: documentation that legitimately mentions secret types"
+paths = [
+    '''docs/security\.md''',
+    '''docs/architecture\.md''',
+]
+
+[[allowlists]]
+description = "ssuAI: deploy templates with placeholder values"
+paths = [
+    '''deploy/k8s/secret\.example\.yaml''',
+]
