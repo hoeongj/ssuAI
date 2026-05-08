@@ -5,6 +5,10 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-07
 
+- 2026-05-09: Task 09 secret scanning - `gitleaks` GitHub Actions job과
+  optional `lefthook` pre-commit hook 추가. `.gitleaks.toml` 은 default rule
+  pack을 확장하고 documentation / deploy secret example false positive 만
+  allowlist 처리.
 - 2026-05-07: Task 05 frontend MVP - Next.js dashboard + 4 cards, local
   integration. API envelope unwrap + per-card loading/error/empty states and
   dev-only CORS completed.
