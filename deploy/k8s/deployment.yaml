@@ -50,9 +50,16 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1Gi"
+          # Liveness vs readiness are split deliberately. Spring Boot's
+          # K8s probes group exposes /actuator/health/liveness (JVM up?)
+          # and /actuator/health/readiness (ready for traffic? — bound to
+          # ReadinessState + readiness-grouped health indicators). Using
+          # plain /actuator/health for liveness would let any future
+          # health indicator (DB, cache) restart the pod on a transient
+          # downstream blip. See ADR 0007 §"Consequences".
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             initialDelaySeconds: 20
             periodSeconds: 5
@@ -60,7 +67,7 @@ spec:
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: http
             initialDelaySeconds: 60
             periodSeconds: 30
