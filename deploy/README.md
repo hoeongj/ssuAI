@@ -187,11 +187,19 @@ Then apply, in order:
 kubectl apply -f deploy/k8s/clusterissuer.yaml
 kubectl apply -f deploy/k8s/namespace.yaml
 kubectl apply -f deploy/k8s/configmap.yaml          # edit SSUAI_FRONTEND_ORIGIN first
-kubectl apply -f deploy/k8s/secret.example.yaml     # placeholder secret; fine for MVP
 kubectl apply -f deploy/k8s/service.yaml
 kubectl apply -f deploy/k8s/deployment.yaml
 kubectl apply -f deploy/k8s/ingress.yaml
 ```
+
+`secret.example.yaml` is intentionally **not** applied. It is a template
+showing the manifest shape that will be needed when the first real
+secret arrives (DB password, JWT signing key, etc.). The MVP backend has
+no secrets, and `deployment.yaml`'s `secretRef` is marked
+`optional: true`, so the pod boots fine without a `Secret` resource in
+the cluster. When a real secret is needed, copy this file outside the
+repo, fill in the values, and `kubectl apply` from there — never commit
+filled values back.
 
 (Order matters because `Ingress` references the `Service`, the
 `Service` references the `Deployment` selectors, and the `Certificate`
