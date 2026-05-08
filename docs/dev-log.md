@@ -9,6 +9,9 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
   optional `lefthook` pre-commit hook 추가. `.gitleaks.toml` 은 default rule
   pack을 확장하고 `sk-ant-api03` Anthropic key pattern 및 documentation /
   deploy secret example false positive allowlist 처리.
+- 2026-05-09: Task 11 Dependabot - backend Gradle, frontend npm, GitHub
+  Actions 3 ecosystem에 weekly update PR 설정. patch/minor는 ecosystem별로
+  group 처리하고 major는 개별 PR로 남김.
 - 2026-05-07: Task 05 frontend MVP - Next.js dashboard + 4 cards, local
   integration. API envelope unwrap + per-card loading/error/empty states and
   dev-only CORS completed.
