@@ -189,6 +189,8 @@ decisions to [`docs/adr/`](docs/adr/).
 This is a one-developer portfolio project, but the conventions are
 documented because they matter for how the codebase reads:
 
+- **Dependency updates** are handled by Dependabot for Gradle, npm, and
+  GitHub Actions.
 - **Conventional Commits** for the message header. See `git log` for
   the prevailing style.
 - **One concept per commit, one concept per PR.** See ADR 0007 for the
