@@ -31,7 +31,8 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    testImplementation 'com.squareup.okhttp3:okhttp:5.3.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:5.3.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

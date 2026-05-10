@@ -10,9 +10,9 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
 import okio.Buffer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +38,7 @@ class RealDormMealConnectorHttpTests {
 
     @AfterEach
     void tearDown() throws Exception {
-        server.shutdown();
+        server.close();
     }
 
     @Test
@@ -54,13 +54,13 @@ class RealDormMealConnectorHttpTests {
                 .contains("순두부찌개", "소이소스돈불고기");
 
         RecordedRequest request = server.takeRequest();
-        assertThat(request.getHeader("User-Agent")).isEqualTo("ssuAI/0.1 (+akftjdwn@gmail.com)");
-        assertThat(request.getHeader("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
+        assertThat(request.getHeaders().get("User-Agent")).isEqualTo("ssuAI/0.1 (+akftjdwn@gmail.com)");
+        assertThat(request.getHeaders().get("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
     }
 
     @Test
     void fetchThisWeekMealThrowsUnavailableForHttp503() {
-        server.enqueue(new MockResponse().setResponseCode(503));
+        server.enqueue(new MockResponse.Builder().code(503).build());
         RealDormMealConnector connector = connectorWithTimeout(5_000);
 
         assertThatThrownBy(connector::fetchThisWeekMeal)
@@ -69,10 +69,11 @@ class RealDormMealConnectorHttpTests {
 
     @Test
     void fetchThisWeekMealThrowsTimeoutWhenServerDoesNotRespond() throws Exception {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
-                .setHeadersDelay(500, TimeUnit.MILLISECONDS)
-                .setBody(fixtureUtf8()));
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
+                .headersDelay(500, TimeUnit.MILLISECONDS)
+                .body(fixtureUtf8())
+                .build());
         RealDormMealConnector connector = connectorWithTimeout(100);
 
         assertThatThrownBy(connector::fetchThisWeekMeal)
@@ -81,10 +82,11 @@ class RealDormMealConnectorHttpTests {
 
     @Test
     void fetchThisWeekMealThrowsParseExceptionForEmptyHtml() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/html; charset=euc-kr")
-                .setBody("<html><body></body></html>"));
+                .body("<html><body></body></html>")
+                .build());
         RealDormMealConnector connector = connectorWithTimeout(5_000);
 
         assertThatThrownBy(connector::fetchThisWeekMeal)
@@ -98,10 +100,11 @@ class RealDormMealConnectorHttpTests {
     private void enqueueFixtureAsEucKr() throws Exception {
         byte[] eucKrBytes = fixtureUtf8().getBytes(Charset.forName("EUC-KR"));
         Buffer buffer = new Buffer().write(eucKrBytes);
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/html; charset=euc-kr")
-                .setBody(buffer));
+                .body(buffer)
+                .build());
     }
 
     private static String fixtureUtf8() throws Exception {

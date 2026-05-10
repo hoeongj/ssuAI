@@ -13,9 +13,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,15 +44,16 @@ class RealMealConnectorHttpTests {
 
     @AfterEach
     void tearDown() throws Exception {
-        server.shutdown();
+        server.close();
     }
 
     @Test
     void fetchMealParsesSuccessfulResponse() throws Exception {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody(fixture()));
+                .body(fixture())
+                .build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         MealResponse response = connector.fetchMeal(DATE, MealRestaurant.STUDENT);
@@ -64,28 +65,29 @@ class RealMealConnectorHttpTests {
         assertThat(response.closures()).isEmpty();
 
         RecordedRequest request = server.takeRequest();
-        assertThat(request.getPath()).isEqualTo("/m/m_req/m_menu.php?rcd=1&sdt=20260506");
-        assertThat(request.getHeader("User-Agent")).isEqualTo("ssuAI/0.1 (+akftjdwn@gmail.com)");
-        assertThat(request.getHeader("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
+        assertThat(request.getTarget()).isEqualTo("/m/m_req/m_menu.php?rcd=1&sdt=20260506");
+        assertThat(request.getHeaders().get("User-Agent")).isEqualTo("ssuAI/0.1 (+akftjdwn@gmail.com)");
+        assertThat(request.getHeaders().get("Accept-Language")).isEqualTo("ko-KR,ko;q=0.9");
     }
 
     @Test
     void fetchMealUsesRestaurantCodeInQueryString() throws Exception {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody(closedBody()));
+                .body(closedBody())
+                .build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         connector.fetchMeal(DATE, MealRestaurant.FACULTY_LOUNGE);
 
-        assertThat(server.takeRequest().getPath())
+        assertThat(server.takeRequest().getTarget())
                 .isEqualTo("/m/m_req/m_menu.php?rcd=7&sdt=20260506");
     }
 
     @Test
     void fetchMealThrowsUnavailableForHttp503() {
-        server.enqueue(new MockResponse().setResponseCode(503));
+        server.enqueue(new MockResponse.Builder().code(503).build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         assertThatThrownBy(() -> connector.fetchMeal(DATE, MealRestaurant.STUDENT))
@@ -94,10 +96,11 @@ class RealMealConnectorHttpTests {
 
     @Test
     void fetchMealThrowsTimeoutWhenServerDoesNotRespond() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
-                .setHeadersDelay(500, TimeUnit.MILLISECONDS)
-                .setBody(fixtureUnchecked()));
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
+                .headersDelay(500, TimeUnit.MILLISECONDS)
+                .body(fixtureUnchecked())
+                .build());
         RealMealConnector connector = connectorWithTimeout(100);
 
         assertThatThrownBy(() -> connector.fetchMeal(DATE, MealRestaurant.STUDENT))
@@ -106,10 +109,11 @@ class RealMealConnectorHttpTests {
 
     @Test
     void fetchMealThrowsParseExceptionForEmptyHtml() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody("<html><body></body></html>"));
+                .body("<html><body></body></html>")
+                .build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         assertThatThrownBy(() -> connector.fetchMeal(DATE, MealRestaurant.STUDENT))
@@ -118,10 +122,11 @@ class RealMealConnectorHttpTests {
 
     @Test
     void fetchMealReturnsClosureWhenRestaurantIsClosed() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody(closedBody()));
+                .body(closedBody())
+                .build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         MealResponse response = connector.fetchMeal(DATE, MealRestaurant.SNACK);
@@ -137,10 +142,11 @@ class RealMealConnectorHttpTests {
 
     @Test
     void fetchMealReturnsClosureForHolidayNoticeInsideMenuRow() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody(dodamChildrensDayFixtureUnchecked()));
+                .body(dodamChildrensDayFixtureUnchecked())
+                .build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         MealResponse response = connector.fetchMeal(DATE, MealRestaurant.DODAM);
@@ -156,10 +162,10 @@ class RealMealConnectorHttpTests {
 
     @Test
     void fetchMealPreservesClosureRowsWhenOtherRowsHaveMeals() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody("""
+                .body("""
                         <table>
                             <tr>
                                 <td class="menu_nm">중식1</td>
@@ -170,7 +176,8 @@ class RealMealConnectorHttpTests {
                                 <td class="menu_list">오늘은 쉽니다.</td>
                             </tr>
                         </table>
-                        """));
+                        """)
+                .build());
         RealMealConnector connector = connectorWithTimeout(5_000);
 
         MealResponse response = connector.fetchMeal(DATE, MealRestaurant.STUDENT);
@@ -253,10 +260,11 @@ class RealMealConnectorHttpTests {
     }
 
     private static MockResponse successResponse() {
-        return new MockResponse()
-                .setResponseCode(200)
+        return new MockResponse.Builder()
+                .code(200)
                 .setHeader("Content-Type", "text/plain; charset=utf-8")
-                .setBody(fixtureUnchecked());
+                .body(fixtureUnchecked())
+                .build();
     }
 
     private static String fixture() throws Exception {
