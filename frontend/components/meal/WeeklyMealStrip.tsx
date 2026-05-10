@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarDays, Utensils } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -29,17 +29,11 @@ export function WeeklyMealStrip({ days, emptyTitle, emptyDescription }: WeeklyMe
     () => days.find((day) => day.date === today)?.date ?? days[0]?.date ?? "",
     [days, today],
   );
-  const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const [selectedDate, setSelectedDate] = useState("");
   const selectedDateExists = days.some((day) => day.date === selectedDate);
   const activeDate = selectedDateExists ? selectedDate : defaultDate;
   const selectedDay = days.find((day) => day.date === activeDate);
   const selectedMeals = selectedDay ? sortMeals(selectedDay) : [];
-
-  useEffect(() => {
-    if (!selectedDateExists) {
-      setSelectedDate(defaultDate);
-    }
-  }, [defaultDate, selectedDateExists]);
 
   if (days.length === 0) {
     return (
