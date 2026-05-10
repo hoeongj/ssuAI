@@ -6,11 +6,13 @@
 
 [![CI](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml/badge.svg)](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml)
 
-**Status:** MVP in progress. 4 read-only REST endpoints live, MCP server
-exposes the same data to Claude Desktop / Claude Code, Next.js dashboard
-in review (PR #6). Production deploy is the next slice (Task 06).
+**Status:** MVP in progress. 4 read-only REST endpoints, the MCP server,
+and the Next.js dashboard are implemented. Production deployment artifacts
+are merged, but the public live URLs still need the manual Oracle Cloud /
+DuckDNS / Vercel rollout steps from `deploy/README.md`.
 
-**Live demo:** _coming with Task 06 — k3s on Oracle Cloud + Vercel_
+**Live demo:** _not online yet; see `deploy/README.md` for the remaining
+operator steps._
 
 ---
 
@@ -45,14 +47,14 @@ dev). Full design docs:
 - [`docs/security.md`](docs/security.md) — secrets, logging, CORS,
   outbound HTML treatment, dependency policy.
 - [`docs/adr/`](docs/adr/) — every load-bearing decision (currently
-  ADRs 0001–0007).
+  ADRs 0001-0008).
 
 ---
 
 ## Tech stack
 
 **Backend** — Java 21, Spring Boot 3.x, Spring AI MCP Server (SSE),
-Jsoup for cafeteria scraping, Gradle (Kotlin DSL).
+Jsoup for cafeteria scraping, Gradle.
 
 **Frontend** — Next.js 15 App Router, TypeScript (strict), Tailwind CSS,
 shadcn/ui, TanStack Query v5, pnpm.
@@ -143,10 +145,10 @@ Claude Code wiring (direct SSE or via `mcp-proxy`).
 | 02 | Meal mock API | ✅ done |
 | 03 | Real cafeteria connector | ✅ done |
 | 04 | Dorm meal connector | ✅ done |
-| 05 | Frontend MVP (Next.js dashboard, 4 cards) | ✅ done (PR #6 in review) |
-| 06 | Production deploy (k3s + Vercel + cert-manager) | 📐 spec ready (PR #7) |
-| 07 | ArgoCD GitOps + Helm chart refactor | ⏭️ next |
-| 08 | Observability (Prometheus + Grafana + Loki) | ⏭️ next |
+| 05 | Frontend MVP (Next.js dashboard, 4 cards) | done |
+| 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | merged; live rollout pending |
+| 07 | ArgoCD GitOps + Helm chart refactor | spec merged; implementation next |
+| 08 | Observability (Prometheus + Grafana + Loki) | pending |
 
 Specs live in [`docs/tasks/`](docs/tasks/). Per-task narrative is
 appended to [`docs/dev-log.md`](docs/dev-log.md) and load-bearing
@@ -180,7 +182,10 @@ decisions to [`docs/adr/`](docs/adr/).
   boundary is designed to absorb that — a connector swap is the only
   fix needed.
 - **MVP UI is desktop-first.** Mobile works but isn't polished.
-- **No production deploy yet.** Task 06 is the next slice.
+- **Live deployment not reachable yet.** The Dockerfile, image-build CI,
+  and k8s manifests are merged, but the Oracle Cloud VM, DuckDNS record,
+  k3s apply steps, and Vercel project setup still need to be completed
+  outside the repo.
 
 ---
 

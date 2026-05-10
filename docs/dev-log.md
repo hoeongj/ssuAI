@@ -3,6 +3,18 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-10
+
+- 2026-05-10: PR #11~#14 merged into `main` in order. Rebased PR #12 and
+  #13 over the new secret-scanning/dependabot changes to preserve all
+  `docs/dev-log.md` entries, then verified latest `main` locally and in CI.
+- 2026-05-10: Task 07 direction settled as GitOps/ArgoCD. PR #10 was marked
+  ready and merged, adding `docs/tasks/07-argocd-gitops.md` and
+  `docs/adr/0008-gitops-argocd-helm.md`.
+- 2026-05-10: README status refreshed. Task 06 deploy artifacts are merged,
+  but live Oracle Cloud / DuckDNS / Vercel rollout remains an external
+  operator step; candidate live URLs are still unreachable.
+
 ## 2026-05-07
 
 - 2026-05-09: Task 09 secret scanning - `gitleaks` GitHub Actions job과
