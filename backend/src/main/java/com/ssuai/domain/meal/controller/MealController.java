@@ -5,6 +5,9 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +24,7 @@ import com.ssuai.global.response.ApiResponse;
 @Validated
 @RestController
 @RequestMapping("/api/meals")
+@Tag(name = "Meals", description = "Cafeteria meal lookup API")
 public class MealController {
 
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
@@ -35,14 +39,17 @@ public class MealController {
     }
 
     @GetMapping("/today")
+    @Operation(summary = "Get today's cafeteria meals")
     public ApiResponse<MealResponse> getTodayMeal() {
         return ApiResponse.success(mealService.getTodayMeal());
     }
 
     @GetMapping("/weekly")
+    @Operation(summary = "Get weekly cafeteria meals")
     public ApiResponse<WeeklyMealResponse> getWeeklyMeals(
             @RequestParam(required = false)
             @Size(max = ISO_DATE_LENGTH)
+            @Parameter(description = "Optional week start date in yyyy-MM-dd format. Defaults to this week's Monday.")
             String startDate
     ) {
         LocalDate resolved = resolveStartDate(startDate);

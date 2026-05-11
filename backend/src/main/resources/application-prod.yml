@@ -19,3 +19,7 @@ ssuai:
 # JVM tuning: prefer setting JAVA_OPTS on the ConfigMap (e.g.
 # `-XX:+UseG1GC -XX:MaxRAMPercentage=75.0`) so it can be tweaked
 # without a rebuild. The Dockerfile applies JAVA_OPTS via ENTRYPOINT.
+
+springdoc:
+  swagger-ui:
+    enabled: false
