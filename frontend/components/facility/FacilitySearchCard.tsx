@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFacilitySearch } from "@/hooks/useFacilitySearch";
 import { normalizeSearchQuery } from "@/lib/utils";
 
+const MAX_QUERY_LENGTH = 64;
+
 function FacilitySkeleton() {
   return (
     <div className="space-y-3">
@@ -51,6 +53,7 @@ export function FacilitySearchCard() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="검색어를 입력하세요"
             className="pl-9"
+            maxLength={MAX_QUERY_LENGTH}
             aria-label="시설 검색어"
           />
         </div>

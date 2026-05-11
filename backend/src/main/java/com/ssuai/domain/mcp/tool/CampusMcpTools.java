@@ -5,12 +5,11 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import com.ssuai.domain.campus.dto.CampusFacilityListResponse;
+import com.ssuai.domain.campus.dto.CampusFacilitySearchConstraints;
 import com.ssuai.domain.campus.service.CampusFacilityService;
 
 @Component
 public class CampusMcpTools {
-
-    private static final int MAX_QUERY_LENGTH = 64;
 
     private final CampusFacilityService campusFacilityService;
 
@@ -27,10 +26,10 @@ public class CampusMcpTools {
             String query
     ) {
         String safeQuery = query == null ? "" : query;
-        if (safeQuery.length() > MAX_QUERY_LENGTH) {
+        if (safeQuery.length() > CampusFacilitySearchConstraints.MAX_QUERY_LENGTH) {
             throw new IllegalArgumentException(
-                    "query: 최대 " + MAX_QUERY_LENGTH + "자까지 허용됩니다. 받은 길이: "
-                            + safeQuery.length() + "자.");
+                    "query: 최대 " + CampusFacilitySearchConstraints.MAX_QUERY_LENGTH
+                            + "자까지 허용됩니다. 받은 길이: " + safeQuery.length() + "자.");
         }
         return campusFacilityService.searchFacilities(safeQuery);
     }

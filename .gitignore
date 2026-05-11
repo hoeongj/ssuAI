@@ -34,6 +34,9 @@ backend/exports/
 backend/meals.json
 backend/weekly-meals-*.json
 
+# Generated deployment manifests with environment-specific host/origin/email.
+deploy/generated/
+
 # Root-level scratch files (debugging dumps kept locally, never shared)
 /.tmp_*
 

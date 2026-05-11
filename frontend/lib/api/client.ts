@@ -1,12 +1,19 @@
 import { ApiError, type ApiErrorBody, type ApiResponse } from "./types";
 
-const rawBaseUrl = process.env.NEXT_PUBLIC_SSUAI_API_BASE;
+function getApiBaseUrl() {
+  const rawBaseUrl = process.env.NEXT_PUBLIC_SSUAI_API_BASE;
 
-if (!rawBaseUrl) {
-  throw new Error("NEXT_PUBLIC_SSUAI_API_BASE is required. Set it in frontend/.env.local.");
+  if (!rawBaseUrl) {
+    throw new ApiError(
+      "CONFIG_ERROR",
+      "NEXT_PUBLIC_SSUAI_API_BASE is required. Set it in frontend/.env.local.",
+      "",
+      0,
+    );
+  }
+
+  return rawBaseUrl.replace(/\/$/, "");
 }
-
-const apiBaseUrl = rawBaseUrl.replace(/\/$/, "");
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -53,7 +60,7 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}): Promis
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers,
   });

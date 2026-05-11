@@ -109,4 +109,11 @@ class MealControllerTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
+
+    @Test
+    void getWeeklyMealsRejectsOversizedStartDate() throws Exception {
+        mockMvc.perform(get("/api/meals/weekly").param("startDate", "2026-05-04-extra"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    }
 }

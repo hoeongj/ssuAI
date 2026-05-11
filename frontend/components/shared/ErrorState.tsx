@@ -25,6 +25,8 @@ function userMessage(code: string, message: string) {
       return "백엔드 응답 형식이 올바르지 않습니다.";
     case "NETWORK_ERROR":
       return "백엔드에 연결할 수 없습니다. 서버 실행 상태를 확인해주세요.";
+    case "CONFIG_ERROR":
+      return message || "프론트엔드 환경 설정이 누락되었습니다.";
     default:
       return message || "알 수 없는 오류가 발생했습니다.";
   }

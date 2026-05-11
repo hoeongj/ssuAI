@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -70,5 +71,15 @@ class CampusFacilityControllerTests {
                 .andExpect(jsonPath("$.data.facilities[0].weekendHours").value(not(empty())))
                 .andExpect(jsonPath("$.error").value(nullValue()))
                 .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+    }
+
+    @Test
+    void getFacilitiesRejectsOversizedQuery() throws Exception {
+        mockMvc.perform(get("/api/campus/facilities").param("query", "a".repeat(65)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+
+        verifyNoInteractions(campusFacilityService);
     }
 }
