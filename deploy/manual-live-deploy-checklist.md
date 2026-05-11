@@ -30,10 +30,10 @@ https://<VERCEL_URL>
 
 ```text
 Backend health:
-https://ssuai-api.duckdns.org/actuator/health
+https://ssumcp.duckdns.org/actuator/health
 
 Public MCP server:
-https://ssuai-api.duckdns.org/sse
+https://ssumcp.duckdns.org/sse
 
 Frontend:
 https://ssuai.vercel.app
@@ -85,13 +85,13 @@ https://ssuai.vercel.app
 추천 이름:
 
 ```text
-ssuai-api
+ssumcp
 ```
 
 생성되면 backend host는 이렇게 됩니다.
 
 ```text
-ssuai-api.duckdns.org
+ssumcp.duckdns.org
 ```
 
 주의:
@@ -103,14 +103,14 @@ ssuai-api.duckdns.org
 체크:
 
 - [ ] DuckDNS 로그인 완료
-- [ ] `ssuai-api` 또는 원하는 subdomain 확보
+- [ ] `ssumcp` 또는 원하는 subdomain 확보
 - [ ] DuckDNS token을 repo 밖에 안전하게 저장
 - [ ] 사용할 backend host 결정: `<BACKEND_HOST>`
 
 내가 채울 값:
 
 ```text
-<BACKEND_HOST>=
+<BACKEND_HOST>=ssumcp.duckdns.org
 ```
 
 ---
@@ -273,7 +273,7 @@ NEXT_PUBLIC_SSUAI_API_BASE=https://<BACKEND_HOST>
 예시:
 
 ```text
-NEXT_PUBLIC_SSUAI_API_BASE=https://ssuai-api.duckdns.org
+NEXT_PUBLIC_SSUAI_API_BASE=https://ssumcp.duckdns.org
 ```
 
 주의:
@@ -290,7 +290,7 @@ NEXT_PUBLIC_SSUAI_API_BASE=https://ssuai-api.duckdns.org
 내가 채울 값:
 
 ```text
-<VERCEL_URL>=
+<VERCEL_URL>=https://ssuai.vercel.app
 ```
 
 예:
@@ -488,7 +488,7 @@ powershell -ExecutionPolicy Bypass -File deploy/scripts/prepare-live-deploy.ps1 
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File deploy/scripts/prepare-live-deploy.ps1 `
-  -BackendHost ssuai-api.duckdns.org `
+  -BackendHost ssumcp.duckdns.org `
   -FrontendOrigin https://ssuai.vercel.app `
   -OperatorEmail your-email@example.com
 ```

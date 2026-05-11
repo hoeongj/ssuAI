@@ -29,13 +29,14 @@ function Require-NoTrailingSlash {
 }
 
 function Require-HostOnly {
-    param([string]$Host)
+    param([string]$CheckHost)
 
-    if ($Host.StartsWith("http://") -or $Host.StartsWith("https://") -or $Host.Contains("/")) {
-        throw "BackendHost must be a host only, for example 'ssuai-api.duckdns.org'. Received: $Host"
+    if ($CheckHost.StartsWith("http://") -or $CheckHost.StartsWith("https://") -or $CheckHost.Contains("/")) {
+        throw "BackendHost must be a host only, for example 'ssumcp.duckdns.org'. Received: $CheckHost"
     }
 }
 
+Require-HostOnly -CheckHost $BackendHost
 function Replace-FileText {
     param(
         [string]$Path,
@@ -49,7 +50,6 @@ function Replace-FileText {
     Set-Content -Encoding UTF8 -NoNewline -Path $Path -Value $content
 }
 
-Require-HostOnly -Host $BackendHost
 Require-NoTrailingSlash -Name "FrontendOrigin" -Value $FrontendOrigin
 
 if (-not (Test-Path $SourceDir)) {

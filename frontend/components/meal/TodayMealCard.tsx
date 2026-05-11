@@ -13,7 +13,7 @@ import { formatKoreanDate, mealTypeLabel } from "@/lib/utils";
 
 function groupByRestaurant(meals: MealItem[]) {
   return meals.reduce<Record<string, MealItem[]>>((groups, meal) => {
-    groups[meal.restaurant] = [...(groups[meal.restaurant] ?? []), meal];
+    (groups[meal.restaurant] ??= []).push(meal);
     return groups;
   }, {});
 }

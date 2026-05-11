@@ -2,8 +2,14 @@
 
 This is the operator's guide for ssuAI's production environment:
 Spring Boot backend on a single-node **k3s** cluster on **Oracle Cloud
-Free Tier ARM Ampere A1** (`ap-seoul-1`), Next.js frontend on **Vercel**,
+Free Tier ARM Ampere A1**, Next.js frontend on **Vercel**,
 TLS via **cert-manager + Let's Encrypt**, image registry at **ghcr.io**.
+
+Current live endpoints:
+
+- Frontend: `https://ssuai.vercel.app`
+- Backend: `https://ssumcp.duckdns.org`
+- MCP SSE: `https://ssumcp.duckdns.org/sse`
 
 Architecture rationale lives in [`docs/adr/0007-prod-deploy-oracle-k3s.md`](../docs/adr/0007-prod-deploy-oracle-k3s.md).
 
@@ -31,7 +37,7 @@ deploy/
 | What | Where | Notes |
 |---|---|---|
 | Oracle Cloud account | [cloud.oracle.com](https://cloud.oracle.com) | Free tier signup needs a valid credit card (no charge). Choose `ap-seoul-1` (Korea Central) as home region — cannot be changed later. |
-| duckdns subdomain + token | [duckdns.org](https://duckdns.org) | Sign in with GitHub/Google, claim `ssuai-api` (or any free name), copy the token from the dashboard. |
+| duckdns subdomain + token | [duckdns.org](https://duckdns.org) | Sign in with GitHub/Google, claim `ssumcp` (or any free name), copy the token from the dashboard. |
 | Vercel account | [vercel.com](https://vercel.com) | Sign in with GitHub. Free tier covers this project. |
 | Local tools | your laptop | `kubectl` (any 1.30+ works), `ssh`, optionally `helm` for Task 07. |
 
@@ -82,11 +88,11 @@ sudo ufw enable
 
 ## 2. Point duckdns at the VM
 
-On the duckdns dashboard, set `ssuai-api.duckdns.org` (or whatever name
+On the duckdns dashboard, set `ssumcp.duckdns.org` (or whatever name
 you claimed) to the VM's public IP. Verify:
 
 ```bash
-dig +short ssuai-api.duckdns.org
+dig +short ssumcp.duckdns.org
 # should print the VM IP
 ```
 
@@ -96,12 +102,12 @@ VM is ever rebuilt with a new IP:
 ```bash
 sudo tee /etc/cron.d/duckdns >/dev/null <<'EOF'
 */5 * * * * root curl -sk -o /dev/null \
-  "https://www.duckdns.org/update?domains=ssuai-api&token=<YOUR_TOKEN>"
+  "https://www.duckdns.org/update?domains=ssumcp&token=<YOUR_TOKEN>"
 EOF
 sudo chmod 600 /etc/cron.d/duckdns
 ```
 
-Replace `<YOUR_TOKEN>` and `ssuai-api` with your values. The token is a
+Replace `<YOUR_TOKEN>` and `ssumcp` with your values. The token is a
 secret — keep this file root-owned, never commit it.
 
 ---
@@ -171,25 +177,25 @@ needed for an MVP — public image is fine.)
 
 ## 6. Apply the manifests
 
-Edit `deploy/k8s/clusterissuer.yaml` to set the operator email
-(`REPLACE_WITH_OPERATOR_EMAIL@example.com` → your real email).
-
-If the duckdns subdomain you claimed is **not** `ssuai-api.duckdns.org`,
-sed-replace the host in `deploy/k8s/ingress.yaml`:
+Generate the deployable manifests from the templates so host, TLS secret,
+frontend origin, and operator email stay consistent:
 
 ```bash
-sed -i 's/ssuai-api.duckdns.org/<your-host>/g' deploy/k8s/ingress.yaml
+powershell -ExecutionPolicy Bypass -File deploy/scripts/prepare-live-deploy.ps1 \
+  -BackendHost ssumcp.duckdns.org \
+  -FrontendOrigin https://ssuai.vercel.app \
+  -OperatorEmail <YOUR_EMAIL>
 ```
 
 Then apply, in order:
 
 ```bash
-kubectl apply -f deploy/k8s/clusterissuer.yaml
-kubectl apply -f deploy/k8s/namespace.yaml
-kubectl apply -f deploy/k8s/configmap.yaml          # edit SSUAI_FRONTEND_ORIGIN first
-kubectl apply -f deploy/k8s/service.yaml
-kubectl apply -f deploy/k8s/deployment.yaml
-kubectl apply -f deploy/k8s/ingress.yaml
+kubectl apply -f deploy/generated/k8s/clusterissuer.yaml
+kubectl apply -f deploy/generated/k8s/namespace.yaml
+kubectl apply -f deploy/generated/k8s/configmap.yaml
+kubectl apply -f deploy/generated/k8s/service.yaml
+kubectl apply -f deploy/generated/k8s/deployment.yaml
+kubectl apply -f deploy/generated/k8s/ingress.yaml
 ```
 
 `secret.example.yaml` is intentionally **not** applied. It is a template
@@ -221,18 +227,18 @@ cert-manager solves the ACME HTTP-01 challenge.
 ## 7. Verify
 
 ```bash
-curl -i https://ssuai-api.duckdns.org/actuator/health
+curl -i https://ssumcp.duckdns.org/actuator/health
 # HTTP/1.1 200 OK
 # {"status":"UP"}
 
-curl https://ssuai-api.duckdns.org/api/meals/today | jq .
+curl https://ssumcp.duckdns.org/api/meals/today | jq .
 
 # CORS allowlist enforced — this should NOT echo Access-Control-Allow-Origin:
 curl -I -H "Origin: https://attacker.example" \
-  https://ssuai-api.duckdns.org/api/meals/today
+  https://ssumcp.duckdns.org/api/meals/today
 ```
 
-Browser sanity-check: open `https://ssuai-api.duckdns.org/actuator/health`,
+Browser sanity-check: open `https://ssumcp.duckdns.org/actuator/health`,
 confirm the green padlock and that the cert issuer is "Let's Encrypt".
 
 ---
@@ -242,7 +248,7 @@ confirm the green padlock and that the cert issuer is "Let's Encrypt".
 1. Vercel → **New Project** → import the GitHub repo.
 2. Framework preset: Next.js (auto-detected).
 3. Root directory: `frontend`.
-4. Environment variable: `NEXT_PUBLIC_SSUAI_API_BASE = https://ssuai-api.duckdns.org`.
+4. Environment variable: `NEXT_PUBLIC_SSUAI_API_BASE = https://ssumcp.duckdns.org`.
 5. Deploy.
 6. Once the deploy is green, copy the production URL
    (e.g. `https://ssuai.vercel.app`) and set it as `SSUAI_FRONTEND_ORIGIN`

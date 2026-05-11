@@ -6,13 +6,13 @@
 
 [![CI](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml/badge.svg)](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml)
 
-**Status:** MVP in progress. 4 read-only REST endpoints, the MCP server,
-and the Next.js dashboard are implemented. Production deployment artifacts
-are merged, but the public live URLs still need the manual Oracle Cloud /
-DuckDNS / Vercel rollout steps from `deploy/README.md`.
+**Status:** MVP live. 4 read-only REST endpoints, the MCP server, and the
+Next.js dashboard are deployed over public HTTPS.
 
-**Live demo:** _not online yet; see `deploy/README.md` for the remaining
-operator steps._
+Live endpoints:
+- **Demo:** <https://ssuai.vercel.app/>
+- **Backend:** <https://ssumcp.duckdns.org>
+- **MCP SSE:** <https://ssumcp.duckdns.org/sse>
 
 ---
 
@@ -21,7 +21,7 @@ operator steps._
 | Surface | What you can do |
 |---|---|
 | **REST API** | `GET /api/meals/today`, `GET /api/meals/weekly`, `GET /api/dorm/meals/this-week`, `GET /api/campus/facilities?query=…` — all return the standard `ApiResponse<T>` envelope with `data` / `error` / `traceId`. |
-| **Web dashboard** | Next.js 15 App Router with 4 cards (today's cafeteria, weekly cafeteria, dorm weekly, facility search). Per-card loading / error / empty states. |
+| **Web dashboard** | Next.js 16 App Router with 4 cards (today's cafeteria, weekly cafeteria, dorm weekly, facility search). Per-card loading / error / empty states. |
 | **MCP server** | 4 tools (`get_today_meal`, `get_meal_by_date`, `get_dorm_weekly_meal`, `search_campus_facilities`) over SSE. Same Spring Boot process; usable from Claude Desktop, Claude Code, Cursor. See [`docs/mcp-tools.md`](docs/mcp-tools.md). |
 
 No login, no PII, no personalization yet — the MVP is intentionally
@@ -53,14 +53,14 @@ dev). Full design docs:
 
 ## Tech stack
 
-**Backend** — Java 21, Spring Boot 3.x, Spring AI MCP Server (SSE),
+**Backend** — Java 21, Spring Boot 4.x, Spring AI MCP Server (SSE),
 Jsoup for cafeteria scraping, Gradle.
 
-**Frontend** — Next.js 15 App Router, TypeScript (strict), Tailwind CSS,
+**Frontend** — Next.js 16 App Router, TypeScript (strict), Tailwind CSS,
 shadcn/ui, TanStack Query v5, pnpm.
 
 **Infra (Task 06+)** — Single-node k3s on Oracle Cloud Free Tier ARM
-Ampere A1 (`ap-seoul-1`), Traefik ingress, cert-manager + Let's Encrypt,
+Ampere A1, Traefik ingress, cert-manager + Let's Encrypt,
 GitHub Container Registry. Frontend on Vercel.
 
 Why this stack? — see ADRs
@@ -146,7 +146,7 @@ Claude Code wiring (direct SSE or via `mcp-proxy`).
 | 03 | Real cafeteria connector | ✅ done |
 | 04 | Dorm meal connector | ✅ done |
 | 05 | Frontend MVP (Next.js dashboard, 4 cards) | done |
-| 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | merged; live rollout pending |
+| 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | live |
 | 07 | ArgoCD GitOps + Helm chart refactor | spec merged; implementation next |
 | 08 | Observability (Prometheus + Grafana + Loki) | pending |
 
@@ -170,6 +170,8 @@ decisions to [`docs/adr/`](docs/adr/).
 - [`docs/dev-log.md`](docs/dev-log.md) — chronological build log.
 - [`docs/troubleshooting/`](docs/troubleshooting/) — postmortems and
   root-cause writeups.
+- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — top-level troubleshooting
+  log shared by Claude and Codex.
 
 ---
 
@@ -182,10 +184,8 @@ decisions to [`docs/adr/`](docs/adr/).
   boundary is designed to absorb that — a connector swap is the only
   fix needed.
 - **MVP UI is desktop-first.** Mobile works but isn't polished.
-- **Live deployment not reachable yet.** The Dockerfile, image-build CI,
-  and k8s manifests are merged, but the Oracle Cloud VM, DuckDNS record,
-  k3s apply steps, and Vercel project setup still need to be completed
-  outside the repo.
+- **Live deployment is still one small VM.** The public demo is suitable for
+  portfolio review and low traffic, not high-volume production use.
 
 ---
 

@@ -76,6 +76,20 @@ After changes:
 - recommend verification commands
 - encourage a small, focused commit
 
+Troubleshooting:
+- Append portfolio-worthy incidents, debugging findings, and fixes to
+  `TROUBLESHOOTING.md` at the repo root in Korean. Keep entries concise,
+  include symptom/root cause/fix/verification, and never include secrets or
+  personal student data.
+
+CI / token usage:
+- Do not use long-running GitHub Actions polling such as `gh run watch` or
+  `gh pr checks --watch`. Prefer one-shot status checks (`gh pr checks`,
+  `gh run list --limit 5`, `gh run view --json ...`), then summarize.
+- When a CI job fails, do not paste or read the full raw log unless the user
+  explicitly asks. Inspect only the failing step or the last 50-100 lines and
+  report the actionable error.
+
 The user is the final decision maker. Do not silently make broad
 architectural changes — propose, then wait.
 

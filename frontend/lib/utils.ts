@@ -54,6 +54,8 @@ export function normalizeSearchQuery(query: string) {
 
 export function mealTypeLabel(type: string) {
   switch (type) {
+    case "ALL_DAY":
+      return "상시";
     case "BREAKFAST":
       return "아침";
     case "LUNCH":

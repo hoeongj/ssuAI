@@ -21,7 +21,7 @@ export class ApiError extends Error {
   }
 }
 
-export type MealType = "BREAKFAST" | "LUNCH" | "DINNER";
+export type MealType = "ALL_DAY" | "BREAKFAST" | "LUNCH" | "DINNER";
 
 export interface MealItem {
   restaurant: string;

@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import type { MealResponse } from "@/lib/api/types";
 import { cn, formatShortKoreanDate, getSeoulDateString, mealTypeLabel } from "@/lib/utils";
 
-const mealTypeOrder = ["BREAKFAST", "LUNCH", "DINNER"];
+const mealTypeOrder = new Map([
+  ["ALL_DAY", 0],
+  ["BREAKFAST", 1],
+  ["LUNCH", 2],
+  ["DINNER", 3],
+]);
 
 interface WeeklyMealStripProps {
   days: MealResponse[];
@@ -19,7 +24,7 @@ interface WeeklyMealStripProps {
 
 function sortMeals(day: MealResponse) {
   return [...day.meals].sort(
-    (left, right) => mealTypeOrder.indexOf(left.type) - mealTypeOrder.indexOf(right.type),
+    (left, right) => (mealTypeOrder.get(left.type) ?? 99) - (mealTypeOrder.get(right.type) ?? 99),
   );
 }
 
@@ -61,8 +66,6 @@ export function WeeklyMealStrip({ days, emptyTitle, emptyDescription }: WeeklyMe
                 active ? "shadow-sm" : "bg-card",
               )}
               onClick={() => setSelectedDate(day.date)}
-              onFocus={() => setSelectedDate(day.date)}
-              onMouseEnter={() => setSelectedDate(day.date)}
             >
               <span className="text-sm font-semibold">{formatShortKoreanDate(day.date)}</span>
               <span className="flex flex-wrap gap-1 pt-2">

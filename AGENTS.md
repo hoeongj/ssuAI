@@ -99,6 +99,14 @@ This format is mandatory even for one-file edits.
 8. Never commit secrets, passwords, cookies, tokens, or session values.
 9. Tests must not call real u-SAINT, real LMS, or any authenticated school
    endpoint. Use fixtures or mocks.
+10. Append portfolio-worthy incidents, debugging findings, and fixes to
+    root `TROUBLESHOOTING.md` in Korean. Include symptom/root cause/fix/
+    verification, and never include secrets or personal student data.
+11. CI 확인은 토큰을 아끼는 방식으로 한다. `gh run watch`,
+    `gh pr checks --watch` 같은 장시간 polling 명령을 쓰지 않는다. 대신
+    `gh pr checks <PR>`, `gh run list --limit 5`, `gh run view <RUN_ID> --json ...`
+    같은 one-shot 조회를 사용한다. 실패 로그가 필요하면 전체 로그를 읽지
+    말고 실패 step의 마지막 50~100줄만 확인해서 요약한다.
 
 ## Verification Commands
 

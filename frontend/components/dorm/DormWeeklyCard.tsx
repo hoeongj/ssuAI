@@ -4,24 +4,11 @@ import { Building2 } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState, getErrorStateDetails } from "@/components/shared/ErrorState";
+import { WeeklyMealSkeleton } from "@/components/meal/WeeklyMealSkeleton";
 import { WeeklyMealStrip } from "@/components/meal/WeeklyMealStrip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useDormWeeklyMeal } from "@/hooks/useDormWeeklyMeal";
 import { formatShortKoreanDate } from "@/lib/utils";
-
-function DormWeeklySkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-2 sm:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <Skeleton key={index} className="h-24 w-full" />
-        ))}
-      </div>
-      <Skeleton className="h-36 w-full" />
-    </div>
-  );
-}
 
 export function DormWeeklyCard() {
   const { data, error, isLoading, refetch } = useDormWeeklyMeal();
@@ -35,7 +22,7 @@ export function DormWeeklyCard() {
         <CardDescription>{range}</CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? <DormWeeklySkeleton /> : null}
+        {isLoading ? <WeeklyMealSkeleton /> : null}
         {errorState ? (
           <ErrorState
             code={errorState.code}

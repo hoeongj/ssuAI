@@ -282,6 +282,9 @@ class RealMealConnector implements MealConnector {
     }
 
     private static Optional<MealType> mealTypeForCorner(String corner) {
+        if (corner.equals("메뉴") || corner.contains("상시")) {
+            return Optional.of(MealType.ALL_DAY);
+        }
         if (corner.startsWith("조식")) {
             return Optional.of(MealType.BREAKFAST);
         }

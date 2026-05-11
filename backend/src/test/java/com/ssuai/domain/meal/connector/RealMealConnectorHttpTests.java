@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import com.ssuai.domain.meal.dto.MealItem;
 import com.ssuai.domain.meal.dto.MealResponse;
 import com.ssuai.domain.meal.dto.MealRestaurant;
+import com.ssuai.domain.meal.dto.MealType;
 import com.ssuai.global.exception.ConnectorParseException;
 import com.ssuai.global.exception.ConnectorTimeoutException;
 import com.ssuai.global.exception.ConnectorUnavailableException;
@@ -138,6 +139,35 @@ class RealMealConnectorHttpTests {
                     assertThat(closure.restaurant()).isEqualTo("스낵코너");
                     assertThat(closure.reason()).isEqualTo("오늘은 쉽니다.");
                 });
+    }
+
+    @Test
+    void fetchMealParsesGenericMenuRowsAsAllDay() {
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
+                .setHeader("Content-Type", "text/plain; charset=utf-8")
+                .body("""
+                        <table>
+                            <tr>
+                                <td class="menu_nm">메뉴</td>
+                                <td class="menu_list">추억의도시락 - 5.0<br>치킨마요덮밥 - 5.0</td>
+                            </tr>
+                        </table>
+                        """)
+                .build());
+        RealMealConnector connector = connectorWithTimeout(5_000);
+
+        MealResponse response = connector.fetchMeal(DATE, MealRestaurant.SNACK);
+
+        assertThat(response.meals())
+                .singleElement()
+                .satisfies(meal -> {
+                    assertThat(meal.restaurant()).isEqualTo("스낵코너");
+                    assertThat(meal.type()).isEqualTo(MealType.ALL_DAY);
+                    assertThat(meal.corner()).isEqualTo("메뉴");
+                    assertThat(meal.menu()).containsExactly("추억의도시락", "치킨마요덮밥");
+                });
+        assertThat(response.closures()).isEmpty();
     }
 
     @Test
