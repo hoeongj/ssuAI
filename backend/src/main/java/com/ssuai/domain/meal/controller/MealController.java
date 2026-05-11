@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 
+import jakarta.validation.constraints.Size;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,11 +18,13 @@ import com.ssuai.domain.meal.service.MealService;
 import com.ssuai.domain.meal.service.WeeklyMealExportService;
 import com.ssuai.global.response.ApiResponse;
 
+@Validated
 @RestController
 @RequestMapping("/api/meals")
 public class MealController {
 
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+    private static final int ISO_DATE_LENGTH = 10;
 
     private final MealService mealService;
     private final WeeklyMealExportService weeklyMealExportService;
@@ -37,7 +41,9 @@ public class MealController {
 
     @GetMapping("/weekly")
     public ApiResponse<WeeklyMealResponse> getWeeklyMeals(
-            @RequestParam(required = false) String startDate
+            @RequestParam(required = false)
+            @Size(max = ISO_DATE_LENGTH)
+            String startDate
     ) {
         LocalDate resolved = resolveStartDate(startDate);
         return ApiResponse.success(weeklyMealExportService.fetchWeeklyMeals(resolved));

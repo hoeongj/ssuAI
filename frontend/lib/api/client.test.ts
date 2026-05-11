@@ -131,7 +131,13 @@ describe("fetchJson", () => {
     await expect(fetchJson("/api/meals/today")).rejects.toBe(networkError);
   });
 
-  it("throws a clear module-load error when NEXT_PUBLIC_SSUAI_API_BASE is missing", async () => {
-    await expect(importClient(null)).rejects.toThrow("NEXT_PUBLIC_SSUAI_API_BASE is required");
+  it("throws a clear config error when NEXT_PUBLIC_SSUAI_API_BASE is missing", async () => {
+    const { fetchJson } = await importClient(null);
+
+    await expect(fetchJson("/api/meals/today")).rejects.toMatchObject({
+      code: "CONFIG_ERROR",
+      message: "NEXT_PUBLIC_SSUAI_API_BASE is required. Set it in frontend/.env.local.",
+      httpStatus: 0,
+    });
   });
 });

@@ -10,6 +10,7 @@ describe("ErrorState", () => {
     ["VALIDATION_FAILED", "입력값을 확인해주세요."],
     ["INVALID_ENVELOPE", "백엔드 응답 형식이 올바르지 않습니다."],
     ["NETWORK_ERROR", "백엔드에 연결할 수 없습니다. 서버 실행 상태를 확인해주세요."],
+    ["CONFIG_ERROR", "프론트엔드 환경 설정이 누락되었습니다."],
     ["UNKNOWN_ERROR", "알 수 없는 오류가 발생했습니다."],
   ])("renders the user-facing message for %s", (code, expectedMessage) => {
     render(<ErrorState code={code} message="" traceId="trace-1" />);

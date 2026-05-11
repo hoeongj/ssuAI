@@ -50,4 +50,16 @@ describe("FacilitySearchCard", () => {
     expect(screen.getByText("학생회관 1층")).toBeInTheDocument();
     expect(screen.getByText("평일: 09:00-18:00")).toBeInTheDocument();
   });
+
+  it("limits search input to 64 characters", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchFacilities).mockResolvedValue({ facilities: [] });
+
+    renderWithProviders(<FacilitySearchCard />);
+
+    const input = screen.getByRole("textbox", { name: "시설 검색어" });
+    await user.type(input, "a".repeat(70));
+
+    expect(input).toHaveValue("a".repeat(64));
+  });
 });
