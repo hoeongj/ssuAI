@@ -28,6 +28,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.jsoup:jsoup:1.22.2'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

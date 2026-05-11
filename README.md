@@ -110,6 +110,9 @@ are contacted. Listens on `:8080`.
 curl http://localhost:8080/api/meals/today
 ```
 
+Local OpenAPI JSON is available at <http://localhost:8080/v3/api-docs>,
+and Swagger UI is available at <http://localhost:8080/swagger-ui.html>.
+
 ### Frontend
 
 ```bash
@@ -148,7 +151,11 @@ Claude Code wiring (direct SSE or via `mcp-proxy`).
 | 05 | Frontend MVP (Next.js dashboard, 4 cards) | done |
 | 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | live |
 | 07 | ArgoCD GitOps + Helm chart refactor | spec merged; implementation next |
-| 08 | Observability (Prometheus + Grafana + Loki) | pending |
+| 08 | OpenAPI / Swagger UI | done |
+| 09 | Secret scanning | done |
+| 10 | Frontend test infrastructure | done |
+| 11 | Dependabot | done |
+| next | Chatbot slice | spec pending revision |
 
 Specs live in [`docs/tasks/`](docs/tasks/). Per-task narrative is
 appended to [`docs/dev-log.md`](docs/dev-log.md) and load-bearing
