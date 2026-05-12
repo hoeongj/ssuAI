@@ -19,6 +19,10 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 
 Tool 구현은 `com.ssuai.domain.mcp.tool` 아래의 `MealMcpTools`, `DormMcpTools`, `CampusMcpTools` 에 있다. 각 tool 은 Connector 를 직접 호출하지 않고 도메인 Service 에만 위임한다. REST 와 MCP 가 같은 business logic 을 공유하게 하기 위한 규칙이다.
 
+`/api/chat` 의 LLM mode 도 같은 tool bean 을 재사용한다. 다만 chat 내부에서는
+LLM prompt 비용을 줄이기 위해 tool 응답을 그대로 넣지 않고 compact JSON 으로
+줄여서 전달한다.
+
 ## 3. 서버 띄우기
 Windows:
 

@@ -7,10 +7,12 @@
 [![CI](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml/badge.svg)](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml)
 
 **Status:** MVP live. 4 read-only REST endpoints, the MCP server, and the
-Next.js dashboard are deployed over public HTTPS.
+Next.js dashboard are deployed over public HTTPS. The chatbot slice is in
+review on `feat/chatbot-slice`.
 
 Live endpoints:
 - **Demo:** <https://ssuai.vercel.app/>
+- **Chat:** <https://ssuai.vercel.app/chat>
 - **Backend:** <https://ssumcp.duckdns.org>
 - **MCP SSE:** <https://ssumcp.duckdns.org/sse>
 
@@ -22,6 +24,7 @@ Live endpoints:
 |---|---|
 | **REST API** | `GET /api/meals/today`, `GET /api/meals/weekly`, `GET /api/dorm/meals/this-week`, `GET /api/campus/facilities?query=…` — all return the standard `ApiResponse<T>` envelope with `data` / `error` / `traceId`. |
 | **Web dashboard** | Next.js 16 App Router with 4 cards (today's cafeteria, weekly cafeteria, dorm weekly, facility search). Per-card loading / error / empty states. |
+| **Chatbot** | `/chat` page plus `POST /api/chat`. Default local/test mode is deterministic mock; production can use bounded multi-provider LLM fallback for public campus questions only. |
 | **MCP server** | 4 tools (`get_today_meal`, `get_meal_by_date`, `get_dorm_weekly_meal`, `search_campus_facilities`) over SSE. Same Spring Boot process; usable from Claude Desktop, Claude Code, Cursor. See [`docs/mcp-tools.md`](docs/mcp-tools.md). |
 
 No login, no PII, no personalization yet — the MVP is intentionally
@@ -47,7 +50,7 @@ dev). Full design docs:
 - [`docs/security.md`](docs/security.md) — secrets, logging, CORS,
   outbound HTML treatment, dependency policy.
 - [`docs/adr/`](docs/adr/) — every load-bearing decision (currently
-  ADRs 0001-0008).
+  ADRs 0001-0009).
 
 ---
 
@@ -138,6 +141,17 @@ The MCP server exposes 4 tools at `http://localhost:8080/sse`. See
 [`docs/mcp-tools.md`](docs/mcp-tools.md) for Claude Desktop / Cursor /
 Claude Code wiring (direct SSE or via `mcp-proxy`).
 
+### Chatbot
+
+`/chat` is available in local dev. Backend defaults to `mock` chat mode, so
+the page works without any LLM API key.
+
+```bash
+curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"오늘 학식 뭐야?\"}"
+```
+
 ---
 
 ## Project status
@@ -155,7 +169,7 @@ Claude Code wiring (direct SSE or via `mcp-proxy`).
 | 09 | Secret scanning | done |
 | 10 | Frontend test infrastructure | done |
 | 11 | Dependabot | done |
-| next | Chatbot slice | spec pending revision |
+| next | Chatbot slice | in review on `feat/chatbot-slice` |
 
 Specs live in [`docs/tasks/`](docs/tasks/). Per-task narrative is
 appended to [`docs/dev-log.md`](docs/dev-log.md) and load-bearing

@@ -29,6 +29,60 @@
 
 ---
 
+## 2026-05-12 — chatbot fallback이 한 질문에서 과도한 LLM 호출을 만들 수 있음
+
+- 맥락: chatbot provider fallback과 OpenRouter free model 후보를 늘린 뒤, 토큰 사용 구조를 점검했습니다.
+- 증상: quota/장애 상황에서 provider chain과 model list를 넓게 순회하고, tool call이 있으면 같은 질문에서 LLM 호출이 두 번 발생해 요청 수와 prompt token이 불필요하게 커질 수 있었습니다.
+- 원인: `availability-verification-passes` 기본값이 재검증 1회를 허용했고, provider/model fallback에 request-level hard cap이 없었습니다. 또한 chat tool 결과를 REST/MCP DTO 그대로 JSON 직렬화해서 final prompt에 다시 넣었습니다.
+- 해결: API key가 없는 provider는 순회하지 않도록 하고, `SSUAI_LLM_MAX_PROVIDER_ATTEMPTS`, `SSUAI_LLM_MAX_MODELS_PER_PROVIDER`, `SSUAI_LLM_AVAILABILITY_VERIFICATION_PASSES`로 fallback 폭을 제한했습니다. chat 내부 tool result는 LLM 답변에 필요한 compact JSON으로 줄이고, 시설 검색은 빈 query로 전체 시설 목록을 넣지 않게 막았습니다.
+- 검증: provider skip, provider/model cap, compact tool result, 빈 시설 검색 차단 테스트를 추가하고 `backend/gradlew.bat test`로 확인했습니다.
+- 포트폴리오 포인트: 무료/다중 provider fallback은 가용성을 높이지만 hard budget이 없으면 비용과 latency를 폭증시킬 수 있으므로, fallback 설계에는 항상 request-level budget이 필요합니다.
+
+## 2026-05-12 — OpenRouter free/ZDR fallback만으로는 chatbot 가용성이 부족함
+
+- 맥락: chatbot을 무료 LLM fallback 기반으로 붙이면서 처음에는 OpenRouter free model pool과 private/ZDR model pool을 중심으로 설계했습니다.
+- 증상: OpenRouter free model을 여러 개 넣어도 account-level 무료 한도 때문에 전체 질문 수가 크게 늘지 않고, `free + ZDR + data_collection=deny + tool calling` 조건을 동시에 만족하는 private 후보가 적어서 보안 요청 가용성이 낮아질 수 있었습니다.
+- 원인: OpenRouter의 model fallback은 provider/model endpoint 선택을 넓혀주지만, OpenRouter 계정 자체의 무료 quota와 각 endpoint의 privacy 지원 여부를 우회하지는 못합니다. 또한 provider 정책과 무료 모델 목록이 자주 바뀌어 정적 목록만으로 운영 안정성을 보장하기 어렵습니다.
+- 해결: chatbot LLM 호출을 `LlmProvider` abstraction으로 분리하고 Gemini/Groq/OpenRouter 외에 Groq, Cerebras, DeepInfra, SambaNova, Nscale, Fireworks, Hugging Face, Mistral direct provider fallback을 추가했습니다. 일반 요청은 public pool을 먼저 쓰고, 모두 실패하면 private pool까지 이어서 사용하도록 했습니다. 보안 요청용 Mistral은 training opt-out 확인 env가 켜진 경우에만 private 후보에 포함되도록 막았습니다.
+- 검증: `backend/gradlew.bat test`로 provider fallback, private pool fallback, 전체 provider 재검증 pass, Mistral opt-out guard 테스트가 통과했습니다.
+- 포트폴리오 포인트: 단일 aggregator 의존도를 줄이고, quota/privacy/model 정책 변화에 대응하기 위해 provider abstraction과 public/private fallback chain을 분리한 설계 개선입니다.
+
+## 2026-05-12 — LLM API key를 모델별이 아니라 provider별 secret으로 관리
+
+- 맥락: Gemini, Groq, OpenRouter뿐 아니라 Cerebras, DeepInfra, SambaNova, Nscale, Fireworks, Hugging Face, Mistral까지 fallback 후보가 늘어나면서 어떤 API key를 발급해야 하는지 정리가 필요했습니다.
+- 증상: 사용자가 “모델별로 API key를 다 발급해야 하는지”, “key를 Codex에게 알려줘도 되는지”를 확인했습니다. 모델 수가 많아지면 key 관리 방식이 불명확해져 secret 노출 위험이 커질 수 있었습니다.
+- 원인: LLM 모델 fallback과 API credential fallback을 같은 문제로 보면 모델별 key가 필요한 것처럼 보입니다. 실제로는 대부분 provider key 하나가 해당 provider의 여러 모델 호출 권한을 대표합니다.
+- 해결: key는 모델별이 아니라 provider별 env var로만 관리하도록 정리했습니다. `SSUAI_GEMINI_API_KEY`, `SSUAI_GROQ_API_KEY`, `SSUAI_CEREBRAS_API_KEY`, `SSUAI_DEEPINFRA_API_KEY`, `SSUAI_SAMBANOVA_API_KEY`, `SSUAI_NSCALE_API_KEY`, `SSUAI_FIREWORKS_API_KEY`, `SSUAI_HUGGINGFACE_API_KEY`, `SSUAI_MISTRAL_API_KEY`, `SSUAI_OPENROUTER_API_KEY`를 `.env.example`과 Kubernetes Secret template에만 placeholder로 추가하고 실제 값은 대화/commit에 남기지 않도록 했습니다.
+- 검증: 실제 key 없이도 mock profile과 test profile이 동작하며, `backend/gradlew.bat test`가 통과했습니다. 배포 쪽은 `envFrom.secretRef`를 통해 Secret 값을 주입하는 기존 패턴을 유지했습니다.
+- 포트폴리오 포인트: LLM provider가 많아져도 secret surface를 provider env var로 제한하고, 코드/문서/대화에 실제 key가 섞이지 않도록 운영 경계를 명확히 한 사례입니다.
+
+## 2026-05-12 — 일반 요청 fallback이 public pool에서 멈출 수 있던 설계 보완
+
+- 맥락: 일반 요청은 Gemini/Groq/OpenRouter public pool을 먼저 쓰고, 보안 요청은 privacy 조건을 만족하는 private pool을 쓰도록 분리했습니다.
+- 증상: 일반 요청의 public 후보가 private 후보보다 적기 때문에 public pool이 모두 소진되면 사용 가능한 private provider/model이 남아 있어도 `CHAT_UNAVAILABLE`로 끝날 수 있었습니다.
+- 원인: 초기 fallback 설계가 요청의 privacy mode에 해당하는 provider order만 순회했습니다. 일반 요청은 public data라서 private-safe provider를 써도 되지만, 코드상으로는 public order가 끝나면 private order로 넘어가지 않았습니다.
+- 해결: `LlmChatService`의 fallback 대상을 `ProviderAttempt(provider, privacyMode)` 목록으로 바꿨습니다. 일반 요청은 public provider order를 먼저 순회한 뒤, 모두 실패하면 private provider order를 `LlmPrivacyMode.PRIVATE`로 이어서 순회합니다. 보안 요청은 처음부터 private order만 사용합니다.
+- 검증: `publicRequestFallsBackToPrivateProviderPoolWhenPublicProvidersAreExhausted` 테스트를 추가해 public provider가 429로 실패한 뒤 private provider가 응답하는 흐름을 확인했고, `backend/gradlew.bat test`가 통과했습니다.
+- 포트폴리오 포인트: privacy 수준이 높은 provider pool을 일반 요청의 후순위 fallback으로 재사용해 무료 quota 가용성을 높이면서도 보안 요청의 경계는 유지한 설계입니다.
+
+## 2026-05-12 — fallback 재검증 pass가 provider 내부에만 적용되던 문제
+
+- 맥락: 사용자가 “마지막 모델까지 다 쓰면 1순위부터 마지막 모델까지 다시 돌면서 살아난 모델이 있는지 확인하자”고 요구했습니다.
+- 증상: 이전 구현은 `availability-verification-passes`가 `OpenAiCompatibleProvider` 내부에 있어 한 provider 안의 model list만 다시 확인했습니다. 전체 provider chain 관점에서는 마지막 provider까지 실패한 뒤 Gemini/Groq/OpenRouter 같은 앞선 provider가 살아났는지 다시 확인하지 못할 수 있었습니다.
+- 원인: 재검증 책임이 provider 내부 model fallback에 들어가 있었습니다. 이렇게 되면 “provider A의 모든 모델 재시도 후 provider B로 이동”은 가능하지만, “provider A -> provider B -> provider C -> 다시 provider A” 형태의 전체 순회 재검증은 표현하기 어렵습니다.
+- 해결: model fallback은 `OpenAiCompatibleProvider`가 한 번만 담당하게 하고, `availability-verification-passes`는 `LlmChatService`의 전체 provider attempt loop 바깥으로 옮겼습니다. 이제 전체 provider/model 후보를 한 바퀴 돈 뒤 설정된 횟수만큼 처음 후보부터 다시 확인합니다.
+- 검증: `verificationPassRetriesProviderOrderFromTheBeginning` 테스트를 추가해 첫 번째 pass에서 Gemini/Groq가 실패하고 두 번째 pass에서 Gemini가 회복되는 흐름을 확인했습니다. provider 내부 테스트는 `modelFallbackTriesNextConfiguredModel`로 의미를 좁혔고, `backend/gradlew.bat test`가 통과했습니다.
+- 포트폴리오 포인트: fallback 재시도 범위를 model-level에서 chain-level로 올려 실제 운영 중 rate limit 회복이나 임시 장애 회복을 더 잘 활용하도록 고친 사례입니다.
+
+## 2026-05-12 — LLM fallback 설계 변경 기록이 즉시 남지 않았음
+
+- 맥락: 프로젝트 규칙상 포트폴리오에 남길 만한 디버깅/설계 판단은 `TROUBLESHOOTING.md`에 한국어로 기록해야 합니다.
+- 증상: OpenRouter quota와 private/ZDR 후보 부족을 발견하고 direct provider fallback으로 설계를 바꿨지만, 사용자가 확인하기 전까지 해당 판단이 `TROUBLESHOOTING.md`에 남아 있지 않았습니다.
+- 원인: 코드 구현과 테스트 검증에 집중하면서 “문제 발견 직후 기록” 규칙을 같은 turn 안에서 바로 적용하지 못했습니다.
+- 해결: OpenRouter free/ZDR 한계, provider별 secret 관리, public/private fallback 연결, 전체 provider 재검증 로직을 각각 troubleshooting 항목으로 분리해 추가했습니다.
+- 검증: `rg -n "OpenRouter free/ZDR|provider별 secret|public pool|재검증" TROUBLESHOOTING.md`로 오늘 추가한 항목들이 검색되는 것을 확인했습니다.
+- 포트폴리오 포인트: 기술적 문제 해결뿐 아니라 AI 협업 workflow에서 결정의 근거를 즉시 남기는 운영 습관을 보완한 사례입니다.
+
 ## 2026-05-11 — local pre-commit hook이 gitleaks 미설치로 실패
 
 - 맥락: live cleanup 변경사항을 commit할 때 `lefthook` pre-commit hook이 실행됐습니다.

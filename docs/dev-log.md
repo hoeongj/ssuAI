@@ -3,6 +3,12 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-12
+
+- 2026-05-12: Chatbot slice WIP 정리. `POST /api/chat`, `/chat` page,
+  mock/LLM provider abstraction, bounded fallback budget, compact tool
+  result 정책을 `feat/chatbot-slice` 브랜치 기준으로 문서화. ADR 0009 추가.
+
 ## 2026-05-10
 
 - 2026-05-10: PR #11~#14 merged into `main` in order. Rebased PR #12 and
