@@ -496,14 +496,14 @@ powershell -ExecutionPolicy Bypass -File deploy/scripts/prepare-live-deploy.ps1 
 이 명령은 아래 폴더를 만듭니다.
 
 ```text
-deploy/generated/k8s
+deploy/generated/gitops-breakglass
 ```
 
 이 폴더는 gitignore 되어 있습니다. 개인 배포값이 들어가기 때문입니다.
 
 체크:
 
-- [ ] `deploy/generated/k8s` 생성됨
+- [ ] `deploy/generated/gitops-breakglass` 생성됨
 - [ ] backend host가 맞음
 - [ ] frontend origin이 맞음
 - [ ] operator email이 맞음
@@ -528,11 +528,7 @@ powershell -ExecutionPolicy Bypass -File deploy/scripts/apply-live-deploy.ps1
 
 ```text
 clusterissuer.yaml
-namespace.yaml
-configmap.yaml
-service.yaml
-deployment.yaml
-ingress.yaml
+backend.yaml
 ```
 
 체크:

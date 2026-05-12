@@ -20,5 +20,6 @@ paths = [
 [[allowlists]]
 description = "ssuAI: deploy templates with placeholder values"
 paths = [
-    '''deploy/k8s/secret\.example\.yaml''',
+    '''deploy/charts/ssuai-backend/templates/secret\.example\.yaml''',
+    '''deploy/argocd/image-updater/secret\.example\.yaml''',
 ]
