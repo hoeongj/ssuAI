@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ssuai-backend.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "ssuai-backend.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.env.springProfilesActive | quote }}
+  SSUAI_FRONTEND_ORIGIN: {{ .Values.env.frontendOrigin | quote }}
+  JAVA_OPTS: {{ .Values.env.javaOpts | quote }}
+  SSUAI_CONNECTOR_MEAL: {{ .Values.env.connectorMeal | quote }}
+  SSUAI_CONNECTOR_DORM_MEAL: {{ .Values.env.connectorDormMeal | quote }}
+  SSUAI_CONNECTOR_CHAT: {{ .Values.env.connectorChat | quote }}
+  SSUAI_MISTRAL_TRAINING_OPT_OUT_CONFIRMED: {{ .Values.env.mistralTrainingOptOutConfirmed | quote }}
+  SSUAI_LLM_AVAILABILITY_VERIFICATION_PASSES: {{ .Values.env.llmAvailabilityVerificationPasses | quote }}
+  SSUAI_LLM_MAX_PROVIDER_ATTEMPTS: {{ .Values.env.llmMaxProviderAttempts | quote }}
+  SSUAI_LLM_MAX_MODELS_PER_PROVIDER: {{ .Values.env.llmMaxModelsPerProvider | quote }}
