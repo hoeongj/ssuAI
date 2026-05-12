@@ -1,0 +1,90 @@
+namespace: ssuai-prod
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hoeongj/ssuai-backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+env:
+  springProfilesActive: prod
+  frontendOrigin: https://ssuai.vercel.app
+  javaOpts: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+  connectorMeal: real
+  connectorDormMeal: real
+  connectorChat: mock
+  mistralTrainingOptOutConfirmed: "false"
+  llmAvailabilityVerificationPasses: "0"
+  llmMaxProviderAttempts: "6"
+  llmMaxModelsPerProvider: "2"
+
+secretRef:
+  enabled: true
+  name: ssuai-backend-secrets
+  optional: true
+
+secretTemplate:
+  enabled: false
+  stringData:
+    SSUAI_GEMINI_API_KEY: "<replace-me>"
+    SSUAI_GROQ_API_KEY: "<replace-me>"
+    SSUAI_CEREBRAS_API_KEY: "<replace-me>"
+    SSUAI_DEEPINFRA_API_KEY: "<replace-me>"
+    SSUAI_SAMBANOVA_API_KEY: "<replace-me>"
+    SSUAI_NSCALE_API_KEY: "<replace-me>"
+    SSUAI_FIREWORKS_API_KEY: "<replace-me>"
+    SSUAI_HUGGINGFACE_API_KEY: "<replace-me>"
+    SSUAI_MISTRAL_API_KEY: "<replace-me>"
+    SSUAI_OPENROUTER_API_KEY: "<replace-me>"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: traefik
+  host: ssumcp.duckdns.org
+  tlsSecretName: ssumcp-duckdns-org-tls
+  clusterIssuer: letsencrypt-prod
+  middlewares:
+    redirectHttps: redirect-https
+    hsts: hsts
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+probes:
+  readiness:
+    path: /actuator/health/readiness
+    initialDelaySeconds: 20
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /actuator/health/liveness
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+podSecurityContext:
+  terminationGracePeriodSeconds: 30
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
