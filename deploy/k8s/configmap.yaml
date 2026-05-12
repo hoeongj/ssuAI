@@ -23,3 +23,14 @@ data:
   # makes them visible to operators inspecting the live pod env.
   SSUAI_CONNECTOR_MEAL: "real"
   SSUAI_CONNECTOR_DORM_MEAL: "real"
+  SSUAI_CONNECTOR_CHAT: "llm"
+
+  # Set to "true" only after the Mistral workspace has explicitly opted out
+  # of API input/output training in the Mistral Admin Console.
+  SSUAI_MISTRAL_TRAINING_OPT_OUT_CONFIRMED: "false"
+
+  # LLM fallback cost guardrails. Keep these small unless the live quota and
+  # latency budget have been checked.
+  SSUAI_LLM_AVAILABILITY_VERIFICATION_PASSES: "0"
+  SSUAI_LLM_MAX_PROVIDER_ATTEMPTS: "6"
+  SSUAI_LLM_MAX_MODELS_PER_PROVIDER: "2"
