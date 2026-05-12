@@ -48,7 +48,8 @@ portfolio story, but this slice prioritizes a small safe MVP.
    - 503 mapping in `GlobalExceptionHandler`
 3. Config:
    - default `ssuai.connector.chat: mock`
-   - prod `ssuai.connector.chat: llm`
+   - prod `ssuai.connector.chat` reads `SSUAI_CONNECTOR_CHAT` and defaults to
+     `mock`
    - env-driven provider API keys only
    - request-level fallback guardrails:
      - `SSUAI_LLM_AVAILABILITY_VERIFICATION_PASSES`
@@ -125,6 +126,10 @@ curl -X POST http://localhost:8080/api/chat \
 
 The response should use the standard envelope and return a mock reply unless
 `SSUAI_CONNECTOR_CHAT=llm` is explicitly configured.
+
+Production also defaults to `mock` in the committed manifests. Hosted LLM mode
+is an explicit operator action: set `SSUAI_CONNECTOR_CHAT=llm` and provide at
+least one provider API key in the Kubernetes Secret.
 
 ## Follow-ups
 

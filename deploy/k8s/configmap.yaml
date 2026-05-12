@@ -23,7 +23,9 @@ data:
   # makes them visible to operators inspecting the live pod env.
   SSUAI_CONNECTOR_MEAL: "real"
   SSUAI_CONNECTOR_DORM_MEAL: "real"
-  SSUAI_CONNECTOR_CHAT: "llm"
+  # Keep public chat on deterministic mock mode unless provider API keys and
+  # quota are intentionally configured. Set to "llm" to enable hosted LLM mode.
+  SSUAI_CONNECTOR_CHAT: "mock"
 
   # Set to "true" only after the Mistral workspace has explicitly opted out
   # of API input/output training in the Mistral Admin Console.
