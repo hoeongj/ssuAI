@@ -48,8 +48,8 @@ to `main` is the only required step to deploy a new backend version.
    are exposed as `values.yaml` keys. The chart's default `values.yaml`
    matches today's production configuration.
 2. **Install ArgoCD via the upstream Helm chart**
-   (`argo/argo-cd`, currently 7.x) into the `argocd` namespace. Pin a
-   chart version. Disable Dex (no SSO yet — single-operator portfolio
+   (`argo/argo-cd`, pinned to `9.5.12` in this implementation) into the
+   `argocd` namespace. Disable Dex (no SSO yet — single-operator portfolio
    project). Expose the UI on `argo.duckdns.org` (or
    `argocd.ssuai-api.duckdns.org` — pick the simpler one) behind a
    Traefik ingress with a dedicated cert-manager Certificate.
@@ -190,8 +190,8 @@ resources:
     memory: 1Gi
 
 ingress:
-  host: ssuai-api.duckdns.org
-  tlsSecretName: ssuai-api-tls
+  host: ssumcp.duckdns.org
+  tlsSecretName: ssumcp-duckdns-org-tls
   clusterIssuer: letsencrypt-prod
 
 probes:
@@ -202,10 +202,12 @@ probes:
     path: /actuator/health/readiness
     initialDelaySeconds: 20
 
-# Toggle off by default — set to true once a real Secret exists.
+# Optional secretRef stays enabled so a future Secret can be added without a
+# chart change. It is optional, so the pod still boots when the Secret is absent.
 secretRef:
-  enabled: false
+  enabled: true
   name: ssuai-backend-secrets
+  optional: true
 ```
 
 ### ArgoCD Application annotations for Image Updater

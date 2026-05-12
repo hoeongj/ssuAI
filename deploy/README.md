@@ -1,49 +1,62 @@
-# `deploy/` — production deployment runbook
+# `deploy/` production deployment runbook
 
-This is the operator's guide for ssuAI's production environment:
-Spring Boot backend on a single-node **k3s** cluster on **Oracle Cloud
-Free Tier ARM Ampere A1**, Next.js frontend on **Vercel**,
-TLS via **cert-manager + Let's Encrypt**, image registry at **ghcr.io**.
+This is the operator guide for ssuAI's production environment:
+
+- Spring Boot backend on a single-node k3s cluster on Oracle Cloud Free Tier ARM Ampere A1.
+- Next.js frontend on Vercel.
+- TLS via cert-manager + Let's Encrypt.
+- Backend image registry at `ghcr.io/hoeongj/ssuai-backend`.
+- GitOps rollout via ArgoCD + Helm.
 
 Current live endpoints:
 
 - Frontend: `https://ssuai.vercel.app`
 - Backend: `https://ssumcp.duckdns.org`
 - MCP SSE: `https://ssumcp.duckdns.org/sse`
+- ArgoCD UI: `https://argo-ssuai.duckdns.org`
 
-Architecture rationale lives in [`docs/adr/0007-prod-deploy-oracle-k3s.md`](../docs/adr/0007-prod-deploy-oracle-k3s.md).
+Architecture rationale lives in:
+
+- [`docs/adr/0007-prod-deploy-oracle-k3s.md`](../docs/adr/0007-prod-deploy-oracle-k3s.md)
+- [`docs/adr/0008-gitops-argocd-helm.md`](../docs/adr/0008-gitops-argocd-helm.md)
 
 The directory layout:
 
-```
+```text
 deploy/
-├── docker/
-│   └── Dockerfile         # multi-stage Spring Boot image (Temurin 21, ARM64-capable)
-├── k8s/
-│   ├── namespace.yaml
-│   ├── configmap.yaml
-│   ├── secret.example.yaml
-│   ├── deployment.yaml
-│   ├── service.yaml
+├── argocd/
+│   ├── application-ssuai-backend.yaml
+│   ├── image-updater/
 │   ├── ingress.yaml
+│   ├── README.md
+│   └── values.yaml
+├── charts/
+│   └── ssuai-backend/
+├── cluster-bootstrap/
 │   └── clusterissuer.yaml
-└── README.md              # this file
+├── docker/
+│   └── Dockerfile
+├── scripts/
+└── README.md
 ```
+
+`deploy/charts/ssuai-backend/` is the source of truth for backend Kubernetes
+resources. The old raw `deploy/k8s/` manifests were retired after the chart
+rendered and passed client-side Kubernetes dry-run validation.
 
 ---
 
-## 0. Prerequisites you'll need before starting
+## 0. Prerequisites
 
 | What | Where | Notes |
 |---|---|---|
-| Oracle Cloud account | [cloud.oracle.com](https://cloud.oracle.com) | Free tier signup needs a valid credit card (no charge). Choose `ap-seoul-1` (Korea Central) as home region — cannot be changed later. |
-| duckdns subdomain + token | [duckdns.org](https://duckdns.org) | Sign in with GitHub/Google, claim `ssumcp` (or any free name), copy the token from the dashboard. |
-| Vercel account | [vercel.com](https://vercel.com) | Sign in with GitHub. Free tier covers this project. |
-| Local tools | your laptop | `kubectl` (any 1.30+ works), `ssh`, optionally `helm` for Task 07. |
+| Oracle Cloud account | <https://cloud.oracle.com> | Free tier signup needs a valid credit card. Use `ap-seoul-1` if you want Korea Central. |
+| DuckDNS subdomains + token | <https://duckdns.org> | Point `ssumcp` and `argo-ssuai` at the VM public IP. |
+| Vercel account | <https://vercel.com> | Frontend deploys from the `frontend/` directory. |
+| Local tools | your laptop | `kubectl`, `helm`, `ssh`, optional `argocd` CLI. |
+| GitHub PAT | GitHub UI | Fine-grained PAT scoped to `contents:write` on `hoeongj/ssuAI` only, used by Image Updater. |
 
-You also need a real email address you don't mind giving Let's Encrypt
-(it sends expiration notices). It ends up in the cert's ACME
-registration metadata.
+You also need a real email address for Let's Encrypt expiration notices.
 
 ---
 
@@ -51,30 +64,14 @@ registration metadata.
 
 In the Oracle Cloud console:
 
-1. **Compute → Instances → Create instance**.
-2. Image: **Ubuntu 22.04 LTS aarch64**.
-3. Shape: **VM.Standard.A1.Flex**, 4 OCPUs / 24 GB memory (the full
-   Always Free allocation; you can split this across two VMs later if
-   you want HA, but Task 06 uses one).
-4. Networking:
-   - Default VCN is fine.
-   - Public IPv4 address: yes.
-   - Add a public SSH key (your laptop's `~/.ssh/id_ed25519.pub`).
-5. Boot volume: 100 GB (well under the 200 GB free pool).
-6. Create.
+1. Create an Ubuntu 22.04 LTS aarch64 instance.
+2. Shape: `VM.Standard.A1.Flex`, 4 OCPUs / 24 GB memory.
+3. Enable a public IPv4 address.
+4. Add your SSH public key.
+5. Use a boot volume up to 100 GB.
 
-Once the VM is up, find its public IP in the console.
-
-Open the inbound ports `22`, `80`, `443` in the VCN's default security
-list (or the subnet's NSG):
-
-| Source | Protocol | Destination port |
-|---|---|---|
-| `0.0.0.0/0` | TCP | 22 |
-| `0.0.0.0/0` | TCP | 80 |
-| `0.0.0.0/0` | TCP | 443 |
-
-Ubuntu's UFW also blocks by default. SSH in and:
+Open inbound TCP ports `22`, `80`, and `443` in the VCN security list or NSG.
+Then SSH in and enable UFW:
 
 ```bash
 ssh ubuntu@<VM_PUBLIC_IP>
@@ -86,69 +83,47 @@ sudo ufw enable
 
 ---
 
-## 2. Point duckdns at the VM
+## 2. Point DuckDNS at the VM
 
-On the duckdns dashboard, set `ssumcp.duckdns.org` (or whatever name
-you claimed) to the VM's public IP. Verify:
+Set both subdomains to the VM public IP:
+
+- `ssumcp.duckdns.org`
+- `argo-ssuai.duckdns.org`
+
+Verify:
 
 ```bash
 dig +short ssumcp.duckdns.org
-# should print the VM IP
+dig +short argo-ssuai.duckdns.org
 ```
 
-Install the duckdns updater on the VM so the IP stays current if the
-VM is ever rebuilt with a new IP:
+Install a DuckDNS updater cron on the VM. Keep the token root-owned and never
+commit it:
 
 ```bash
 sudo tee /etc/cron.d/duckdns >/dev/null <<'EOF'
 */5 * * * * root curl -sk -o /dev/null \
-  "https://www.duckdns.org/update?domains=ssumcp&token=<YOUR_TOKEN>"
+  "https://www.duckdns.org/update?domains=ssumcp,argo-ssuai&token=<YOUR_TOKEN>"
 EOF
 sudo chmod 600 /etc/cron.d/duckdns
 ```
 
-Replace `<YOUR_TOKEN>` and `ssumcp` with your values. The token is a
-secret — keep this file root-owned, never commit it.
-
 ---
 
-## 3. Install k3s on the VM
+## 3. Install k3s and cert-manager
+
+Install k3s:
 
 ```bash
 ssh ubuntu@<VM_PUBLIC_IP>
 curl -sfL https://get.k3s.io | sh -
-sudo k3s kubectl get nodes      # node should show Ready within ~30s
+sudo k3s kubectl get nodes
 ```
 
-k3s ships with Traefik (ingress) and a built-in service load balancer
-("klipper-lb"), which is what binds ports 80/443 to the host. No extra
-ingress controller needed.
+Copy `/etc/rancher/k3s/k3s.yaml` to your laptop kubeconfig and replace
+`https://127.0.0.1:6443` with `https://<VM_PUBLIC_IP>:6443`.
 
-Copy the kubeconfig to your laptop so you can run `kubectl` locally:
-
-```bash
-# on the VM
-sudo cat /etc/rancher/k3s/k3s.yaml
-
-# paste into ~/.kube/config on your laptop, then edit:
-#   server: https://127.0.0.1:6443
-# →
-#   server: https://<VM_PUBLIC_IP>:6443
-```
-
-Sanity-check from the laptop:
-
-```bash
-kubectl get nodes
-kubectl get pods -A
-```
-
----
-
-## 4. Install cert-manager
-
-cert-manager runs as a few pods in `cert-manager` namespace and watches
-`Ingress` resources for the `cert-manager.io/cluster-issuer` annotation.
+Install cert-manager:
 
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
@@ -156,137 +131,145 @@ kubectl wait --for=condition=available --timeout=120s \
   -n cert-manager deploy/cert-manager deploy/cert-manager-webhook deploy/cert-manager-cainjector
 ```
 
----
+Apply the cluster-wide issuer once:
 
-## 5. Make the ghcr.io image pullable
+```bash
+kubectl apply -f deploy/cluster-bootstrap/clusterissuer.yaml
+```
 
-The CI image-build job (`.github/workflows/ci.yml`, "Backend image
-(ghcr.io, ARM64)") pushes to
-`ghcr.io/hoeongj/ssuai-backend:<sha>` on every push to `main`. New
-ghcr.io packages default to **private**, so the cluster cannot pull
-without auth. After the first successful CI run:
-
-1. <https://github.com/hoeongj?tab=packages> → click `ssuai-backend`.
-2. **Package settings** → **Change visibility** → **Public**.
-
-(Alternative: keep it private and create a dockerconfigjson-type
-Secret + reference it via `imagePullSecrets` in `deployment.yaml`. Not
-needed for an MVP — public image is fine.)
+Before applying, replace `REPLACE_WITH_OPERATOR_EMAIL@example.com` in a local
+copy or render it with `deploy/scripts/prepare-live-deploy.ps1`.
 
 ---
 
-## 6. Apply the manifests
+## 4. Make the ghcr.io image pullable
 
-Generate the deployable manifests from the templates so host, TLS secret,
-frontend origin, and operator email stay consistent:
+The CI image-build job pushes
+`ghcr.io/hoeongj/ssuai-backend:sha-<full-sha>` on every push to `main`.
+
+If the package is public, no pull secret is needed. If it is private, create a
+`dockerconfigjson` Secret and wire `imagePullSecrets` into the chart in a
+separate change.
+
+---
+
+## 5. Bootstrap ArgoCD
+
+Use the pinned upstream charts documented in [`argocd/README.md`](argocd/README.md).
 
 ```bash
-powershell -ExecutionPolicy Bypass -File deploy/scripts/prepare-live-deploy.ps1 \
-  -BackendHost ssumcp.duckdns.org \
-  -FrontendOrigin https://ssuai.vercel.app \
-  -OperatorEmail <YOUR_EMAIL>
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+
+kubectl create namespace argocd
+helm upgrade --install argocd argo/argo-cd \
+  --version 9.5.12 \
+  --namespace argocd \
+  --values deploy/argocd/values.yaml
+
+kubectl apply -f deploy/argocd/ingress.yaml
 ```
 
-Then apply, in order:
+Rotate the initial ArgoCD admin password immediately after first login:
 
 ```bash
-kubectl apply -f deploy/generated/k8s/clusterissuer.yaml
-kubectl apply -f deploy/generated/k8s/namespace.yaml
-kubectl apply -f deploy/generated/k8s/configmap.yaml
-kubectl apply -f deploy/generated/k8s/service.yaml
-kubectl apply -f deploy/generated/k8s/deployment.yaml
-kubectl apply -f deploy/generated/k8s/ingress.yaml
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
 ```
 
-`secret.example.yaml` is intentionally **not** applied. It is a template
-showing the manifest shape that will be needed when the first real
-secret arrives (DB password, JWT signing key, etc.). The MVP backend has
-no secrets, and `deployment.yaml`'s `secretRef` is marked
-`optional: true`, so the pod boots fine without a `Secret` resource in
-the cluster. When a real secret is needed, copy this file outside the
-repo, fill in the values, and `kubectl apply` from there — never commit
-filled values back.
+---
 
-(Order matters because `Ingress` references the `Service`, the
-`Service` references the `Deployment` selectors, and the `Certificate`
-created by the Ingress's annotation references the `ClusterIssuer`.)
+## 6. Enable the backend Application
 
-Watch the rollout:
+Create the Image Updater git write-back Secret outside the repo. Use
+`deploy/argocd/image-updater/secret.example.yaml` only as the shape:
 
 ```bash
+kubectl -n argocd create secret generic argocd-image-updater-git-creds \
+  --from-literal=username=argocd-image-updater \
+  --from-literal=password=<GITHUB_FINE_GRAINED_PAT> \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Apply the backend Application and install Image Updater:
+
+```bash
+kubectl apply -f deploy/argocd/application-ssuai-backend.yaml
+
+helm upgrade --install argocd-image-updater argo/argocd-image-updater \
+  --version 0.14.0 \
+  --namespace argocd \
+  --values deploy/argocd/image-updater/values.yaml
+```
+
+ArgoCD now owns the backend resources rendered from
+`deploy/charts/ssuai-backend/`.
+
+---
+
+## 7. GitOps upgrade workflow
+
+Normal deploy path:
+
+1. Push to `main`.
+2. CI builds and pushes `ghcr.io/hoeongj/ssuai-backend:sha-<full-sha>`.
+3. ArgoCD Image Updater detects the newest SHA tag.
+4. Image Updater writes the tag back to `deploy/charts/ssuai-backend/values.yaml`.
+5. ArgoCD reconciles the chart and rolls the backend Deployment.
+
+Watch status:
+
+```bash
+kubectl -n argocd get applications.argoproj.io ssuai-backend
+kubectl -n argocd logs deploy/argocd-image-updater --tail=100
 kubectl -n ssuai-prod rollout status deploy/ssuai-backend
 kubectl -n ssuai-prod get pods,svc,ingress
-kubectl get certificate -A
 ```
 
-The `Certificate` resource takes 30–90s to flip to `READY=True` while
-cert-manager solves the ACME HTTP-01 challenge.
+Rollback is a git revert of the image-bump commit. ArgoCD reconciles back to
+the previous chart value.
 
 ---
 
-## 7. Verify
+## 8. Verify production
 
 ```bash
 curl -i https://ssumcp.duckdns.org/actuator/health
-# HTTP/1.1 200 OK
-# {"status":"UP"}
-
 curl https://ssumcp.duckdns.org/api/meals/today | jq .
 
-# CORS allowlist enforced — this should NOT echo Access-Control-Allow-Origin:
 curl -I -H "Origin: https://attacker.example" \
   https://ssumcp.duckdns.org/api/meals/today
 ```
 
-Browser sanity-check: open `https://ssumcp.duckdns.org/actuator/health`,
-confirm the green padlock and that the cert issuer is "Let's Encrypt".
+The final CORS check should not echo `Access-Control-Allow-Origin`.
 
 ---
 
-## 8. Connect the Vercel frontend
+## 9. Emergency break-glass
 
-1. Vercel → **New Project** → import the GitHub repo.
-2. Framework preset: Next.js (auto-detected).
-3. Root directory: `frontend`.
-4. Environment variable: `NEXT_PUBLIC_SSUAI_API_BASE = https://ssumcp.duckdns.org`.
-5. Deploy.
-6. Once the deploy is green, copy the production URL
-   (e.g. `https://ssuai.vercel.app`) and set it as `SSUAI_FRONTEND_ORIGIN`
-   in `deploy/k8s/configmap.yaml`. Re-apply:
-   ```bash
-   kubectl apply -f deploy/k8s/configmap.yaml
-   kubectl -n ssuai-prod rollout restart deploy/ssuai-backend
-   ```
-   (Rollout restart is needed because `WebCorsProdConfig` reads the
-   value at startup.)
+Use this only when GitOps itself is broken.
 
----
+1. Disable auto-sync from the ArgoCD UI or CLI.
+2. Render the chart locally.
+3. Apply the rendered backend manifests manually.
+4. Fix git and ArgoCD.
+5. Re-enable auto-sync after `argocd app diff ssuai-backend` is clean.
 
-## 9. Upgrade workflow
+Local render helper:
 
-Each push to `main` produces a new image at
-`ghcr.io/hoeongj/ssuai-backend:<full-sha>`. To deploy a specific commit:
-
-```bash
-SHA=<the 40-char commit sha>
-kubectl -n ssuai-prod set image deploy/ssuai-backend \
-  backend=ghcr.io/hoeongj/ssuai-backend:sha-$SHA
-kubectl -n ssuai-prod rollout status deploy/ssuai-backend
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy/scripts/prepare-live-deploy.ps1 `
+  -BackendHost ssumcp.duckdns.org `
+  -FrontendOrigin https://ssuai.vercel.app `
+  -OperatorEmail <YOUR_EMAIL> `
+  -Image ghcr.io/hoeongj/ssuai-backend:sha-<full-sha>
 ```
 
-(GitHub's `docker/metadata-action` writes the SHA tag as `sha-<full>` —
-verify the exact tag string with `gh api /users/hoeongj/packages/container/ssuai-backend/versions`
-or by browsing the package's "Tags" tab.)
+Manual apply helper:
 
-If something is wrong:
-
-```bash
-kubectl -n ssuai-prod rollout undo deploy/ssuai-backend
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy/scripts/apply-live-deploy.ps1
 ```
-
-ArgoCD GitOps replaces this manual step in **Task 07** — the SHA in
-`deployment.yaml` becomes the source of truth and a push to `main`
-triggers the rollout automatically.
 
 ---
 
@@ -294,31 +277,17 @@ triggers the rollout automatically.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Pod stays `ImagePullBackOff` | ghcr.io package is still private | See §5 — flip to public, or add `imagePullSecrets`. |
-| `Certificate` stuck `READY=False` | duckdns DNS hasn't propagated, or port 80 blocked | `dig` from a public DNS resolver; check VCN security list + UFW for port 80. |
-| Pod boots but health probe fails | `application-prod.yml` couldn't bind `SSUAI_FRONTEND_ORIGIN` | `kubectl logs` will show the `IllegalStateException` from `WebCorsProdConfig`. Set the value on the ConfigMap and `rollout restart`. |
-| 502 from the ingress | Pod port name mismatch (`http` vs `8080`) | `kubectl describe svc/ssuai-backend` — `targetPort` should be `http` and the Deployment's `containerPort` should be named `http`. |
-| ACME rate-limit hit | Re-issued cert too many times in a week | Wait an hour, or use the staging issuer first when iterating. |
+| Pod stays `ImagePullBackOff` | ghcr.io package is private or tag missing | Make the package public, add pull credentials, or check the SHA tag. |
+| `Certificate` stuck `READY=False` | DNS not propagated or port 80 blocked | Check DuckDNS, Oracle VCN/NSG, and UFW. |
+| ArgoCD Application is `OutOfSync` | Git and cluster differ | Inspect `argocd app diff ssuai-backend`, then sync or fix git. |
+| Image Updater logs credential errors | PAT Secret missing or wrong scope | Recreate `argocd-image-updater-git-creds` with `contents:write`. |
+| Backend 502 from ingress | Service/Deployment selector or pod readiness issue | Check `kubectl -n ssuai-prod describe ingress,svc,pod`. |
+| CORS fails in browser | `SSUAI_FRONTEND_ORIGIN` mismatch | Update chart values and let ArgoCD reconcile. |
 
 ---
 
-## 11. Cost-watching reminders
+## 11. Cost reminders
 
-- Oracle Free Tier: the Always Free ARM allowance is generous but
-  technically reclaimable if the account is idle for very long periods.
-  Logging into the console once every couple of months is the easiest
-  insurance policy.
-- Bandwidth: 10 TB/month outbound free — this project will use far
-  less, but watch it if the dashboard goes viral.
-- Vercel: Hobby tier has soft caps; the 4-card dashboard is well
-  under them.
-
----
-
-## 12. What's next
-
-- **Task 07** — replace the manual `kubectl apply` workflow with
-  ArgoCD watching `deploy/k8s/` (or a Helm chart). Push to `main` →
-  rollout, no SSH needed.
-- **Task 08** — Prometheus + Grafana + Loki in the cluster. Tail logs
-  and metrics from a dashboard instead of `kubectl logs`.
+- Oracle Always Free ARM capacity is generous but not guaranteed forever.
+- Bandwidth is far above this MVP's expected traffic, but still monitor it.
+- ArgoCD adds real pods; check node pressure after installing observability.
