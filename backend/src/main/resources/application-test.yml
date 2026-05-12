@@ -6,3 +6,6 @@ logging:
     root: WARN
     com.ssuai: DEBUG
 
+ssuai:
+  connector:
+    chat: mock

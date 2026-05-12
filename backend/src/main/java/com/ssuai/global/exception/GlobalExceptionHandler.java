@@ -151,6 +151,16 @@ public class GlobalExceptionHandler {
         return error(ErrorCode.CONNECTOR_ERROR);
     }
 
+    @ExceptionHandler(ChatUnavailableException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleChatUnavailableException(
+            ChatUnavailableException exception
+    ) {
+        log.warn("Chat exception: code={} type={}",
+                ErrorCode.CHAT_UNAVAILABLE.name(), exception.getClass().getSimpleName(), exception);
+
+        return error(ErrorCode.CHAT_UNAVAILABLE);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleIllegalArgumentException(
             IllegalArgumentException exception

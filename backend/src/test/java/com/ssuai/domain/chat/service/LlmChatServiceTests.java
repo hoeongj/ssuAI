@@ -1,0 +1,360 @@
+package com.ssuai.domain.chat.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import com.ssuai.domain.chat.config.LlmChatProperties;
+import com.ssuai.domain.chat.dto.ChatResponse;
+import com.ssuai.domain.chat.dto.OpenAiChatCompletionResponse;
+import com.ssuai.domain.chat.dto.OpenAiToolCall;
+import com.ssuai.domain.chat.service.llm.LlmCompletionRequest;
+import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
+import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
+import com.ssuai.domain.chat.service.llm.LlmProvider;
+import com.ssuai.domain.chat.service.llm.LlmProviderException;
+import com.ssuai.domain.campus.dto.CampusFacilityCategory;
+import com.ssuai.domain.campus.dto.CampusFacilityListResponse;
+import com.ssuai.domain.campus.dto.CampusFacilityResponse;
+import com.ssuai.domain.mcp.tool.CampusMcpTools;
+import com.ssuai.domain.mcp.tool.DormMcpTools;
+import com.ssuai.domain.mcp.tool.MealMcpTools;
+
+class LlmChatServiceTests {
+
+    private final MealMcpTools mealMcpTools = mock(MealMcpTools.class);
+    private final DormMcpTools dormMcpTools = mock(DormMcpTools.class);
+    private final CampusMcpTools campusMcpTools = mock(CampusMcpTools.class);
+
+    @Test
+    void fallsBackAcrossProvidersWhenFirstProviderRateLimitIsExceeded() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .fail(new LlmProviderException("gemini", "quota", 429, "rate limit", true, null));
+        FakeProvider groq = new FakeProvider("groq")
+                .reply("groq-model", "fallback reply");
+        LlmChatService chatService = chatService(List.of(gemini, groq), List.of("gemini", "groq"));
+
+        ChatResponse response = chatService.reply("c-test", "오늘 학식 뭐야?");
+
+        assertThat(response.reply()).isEqualTo("fallback reply");
+        assertThat(gemini.callCount()).isEqualTo(1);
+        assertThat(groq.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void followsConfiguredProviderOrder() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "gemini reply");
+        FakeProvider groq = new FakeProvider("groq")
+                .reply("groq-model", "groq reply");
+        LlmChatService chatService = chatService(List.of(gemini, groq), List.of("groq", "gemini"));
+
+        ChatResponse response = chatService.reply("c-test", "오늘 학식 뭐야?");
+
+        assertThat(response.reply()).isEqualTo("groq reply");
+        assertThat(gemini.callCount()).isZero();
+        assertThat(groq.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void publicRequestFallsBackToPrivateProviderPoolWhenPublicProvidersAreExhausted() {
+        FakeProvider publicProvider = new FakeProvider("public-provider")
+                .fail(new LlmProviderException("public-provider", "quota", 429, "rate limit", true, null));
+        FakeProvider privateProvider = new FakeProvider("private-provider")
+                .reply("private-model", "private fallback reply");
+        LlmChatService chatService = chatService(
+                List.of(publicProvider, privateProvider),
+                List.of("public-provider"),
+                List.of("private-provider"),
+                0
+        );
+
+        ChatResponse response = chatService.reply("c-test", "?ㅻ뒛 ?숈떇 萸먯빞?");
+
+        assertThat(response.reply()).isEqualTo("private fallback reply");
+        assertThat(publicProvider.callCount()).isEqualTo(1);
+        assertThat(privateProvider.callCount()).isEqualTo(1);
+        assertThat(privateProvider.lastPrivacyMode()).isEqualTo(LlmPrivacyMode.PRIVATE);
+    }
+
+    @Test
+    void verificationPassRetriesProviderOrderFromTheBeginning() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .fail(new LlmProviderException("gemini", "quota", 429, "rate limit", true, null))
+                .reply("gemini-model", "recovered reply");
+        FakeProvider groq = new FakeProvider("groq")
+                .fail(new LlmProviderException("groq", "quota", 429, "rate limit", true, null));
+        LlmChatService chatService = chatService(
+                List.of(gemini, groq),
+                List.of("gemini", "groq"),
+                List.of("missing-private-provider"),
+                1
+        );
+
+        ChatResponse response = chatService.reply("c-test", "?ㅻ뒛 ?숈떇 萸먯빞?");
+
+        assertThat(response.reply()).isEqualTo("recovered reply");
+        assertThat(gemini.callCount()).isEqualTo(2);
+        assertThat(groq.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void skipsProvidersWithoutConfiguredApiKeys() {
+        FakeProvider unconfigured = new FakeProvider("missing-key")
+                .unconfigured();
+        FakeProvider configured = new FakeProvider("configured")
+                .reply("configured-model", "configured reply");
+        LlmChatService chatService = chatService(
+                List.of(unconfigured, configured),
+                List.of("missing-key", "configured"),
+                List.of(),
+                0
+        );
+
+        ChatResponse response = chatService.reply("c-test", "오늘 학식 뭐야?");
+
+        assertThat(response.reply()).isEqualTo("configured reply");
+        assertThat(unconfigured.callCount()).isZero();
+        assertThat(configured.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void limitsConfiguredProviderAttempts() {
+        FakeProvider first = new FakeProvider("first")
+                .fail(new LlmProviderException("first", "quota", 429, "rate limit", true, null));
+        FakeProvider second = new FakeProvider("second")
+                .fail(new LlmProviderException("second", "quota", 429, "rate limit", true, null));
+        FakeProvider third = new FakeProvider("third")
+                .reply("third-model", "should not be called");
+        LlmChatProperties properties = properties(List.of("first", "second", "third"), List.of(), 0);
+        properties.setMaxProviderAttempts(2);
+        LlmChatService chatService = chatService(List.of(first, second, third), properties);
+
+        try {
+            chatService.reply("c-test", "오늘 학식 뭐야?");
+        } catch (RuntimeException ignored) {
+            // Expected: the first two configured providers are exhausted.
+        }
+
+        assertThat(first.callCount()).isEqualTo(1);
+        assertThat(second.callCount()).isEqualTo(1);
+        assertThat(third.callCount()).isZero();
+    }
+
+    @Test
+    void facilityToolResultIsCompactedBeforeFinalCompletion() {
+        when(campusMcpTools.searchCampusFacilities("카페"))
+                .thenReturn(new CampusFacilityListResponse(List.of(new CampusFacilityResponse(
+                        "library-soongsil-maru",
+                        "도서관 커피점",
+                        CampusFacilityCategory.CAFE,
+                        "카페",
+                        "도서관 6층",
+                        null,
+                        null,
+                        null,
+                        List.of("11:00~17:30"),
+                        List.of("휴무"),
+                        List.of("공개 운영시간만 제공"),
+                        List.of("숭실마루", "도서관 카페")
+                ))));
+        FakeProvider provider = new FakeProvider("gemini")
+                .toolCall("gemini-model", new OpenAiToolCall(
+                        "call-1",
+                        "function",
+                        new OpenAiToolCall.FunctionCall("search_campus_facilities", "{\"query\":\"카페\"}")
+                ))
+                .reply("gemini-model", "도서관 커피점은 도서관 6층에 있어요.");
+        LlmChatService chatService = chatService(List.of(provider), List.of("gemini"), List.of(), 0);
+
+        ChatResponse response = chatService.reply("c-test", "카페 어디 있어?");
+
+        assertThat(response.reply()).isEqualTo("도서관 커피점은 도서관 6층에 있어요.");
+        assertThat(provider.callCount()).isEqualTo(2);
+        String toolContent = provider.request(1).messages().stream()
+                .filter(message -> "tool".equals(message.role()))
+                .findFirst()
+                .orElseThrow()
+                .content();
+        assertThat(toolContent)
+                .contains("\"resultCount\":1")
+                .contains("\"name\":\"도서관 커피점\"")
+                .doesNotContain("aliases")
+                .doesNotContain("fax")
+                .doesNotContain("id");
+    }
+
+    @Test
+    void facilityToolRequiresQueryBeforeCallingService() {
+        FakeProvider provider = new FakeProvider("gemini")
+                .toolCall("gemini-model", new OpenAiToolCall(
+                        "call-1",
+                        "function",
+                        new OpenAiToolCall.FunctionCall("search_campus_facilities", "{}")
+                ))
+                .reply("gemini-model", "시설 종류를 한 단어로 물어봐 주세요.");
+        LlmChatService chatService = chatService(List.of(provider), List.of("gemini"), List.of(), 0);
+
+        ChatResponse response = chatService.reply("c-test", "캠퍼스 시설 알려줘");
+
+        assertThat(response.reply()).isEqualTo("시설 종류를 한 단어로 물어봐 주세요.");
+        verifyNoInteractions(campusMcpTools);
+        String toolContent = provider.request(1).messages().stream()
+                .filter(message -> "tool".equals(message.role()))
+                .findFirst()
+                .orElseThrow()
+                .content();
+        assertThat(toolContent).contains("검색어");
+    }
+
+    @Test
+    void privateAcademicRequestReturnsScopeGuidanceWithoutCallingProviders() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "should not be called");
+        LlmChatService chatService = chatService(List.of(gemini), List.of("gemini"));
+
+        ChatResponse response = chatService.reply("c-test", "내 LMS 과제 알려줘");
+
+        assertThat(response.reply()).contains("아직은 로그인 연동이 필요한 학사 정보");
+        assertThat(gemini.callCount()).isZero();
+        verifyNoInteractions(mealMcpTools, dormMcpTools, campusMcpTools);
+    }
+
+    @Test
+    void secretLikeInputReturnsGuidanceWithoutCallingProviders() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "should not be called");
+        LlmChatService chatService = chatService(List.of(gemini), List.of("gemini"));
+
+        ChatResponse response = chatService.reply("c-test", "내 비밀번호는 1234야");
+
+        assertThat(response.reply()).contains("비밀번호");
+        assertThat(gemini.callCount()).isZero();
+        verifyNoInteractions(mealMcpTools, dormMcpTools, campusMcpTools);
+    }
+
+    private LlmChatService chatService(List<LlmProvider> providers, List<String> providerOrder) {
+        return chatService(providers, providerOrder, List.of("missing-private-provider"), 1);
+    }
+
+    private LlmChatService chatService(
+            List<LlmProvider> providers,
+            List<String> providerOrder,
+            List<String> privateProviderOrder,
+            int availabilityVerificationPasses
+    ) {
+        LlmChatProperties properties = new LlmChatProperties();
+        properties.setProviderOrder(providerOrder);
+        properties.setPrivateProviderOrder(privateProviderOrder);
+        properties.setAvailabilityVerificationPasses(availabilityVerificationPasses);
+        return chatService(providers, properties);
+    }
+
+    private LlmChatProperties properties(
+            List<String> providerOrder,
+            List<String> privateProviderOrder,
+            int availabilityVerificationPasses
+    ) {
+        LlmChatProperties properties = new LlmChatProperties();
+        properties.setProviderOrder(providerOrder);
+        properties.setPrivateProviderOrder(privateProviderOrder);
+        properties.setAvailabilityVerificationPasses(availabilityVerificationPasses);
+        return properties;
+    }
+
+    private LlmChatService chatService(List<LlmProvider> providers, LlmChatProperties properties) {
+        return new LlmChatService(
+                properties,
+                providers,
+                new ObjectMapper(),
+                mealMcpTools,
+                dormMcpTools,
+                campusMcpTools
+        );
+    }
+
+    private static final class FakeProvider implements LlmProvider {
+
+        private final String name;
+        private final Queue<Object> outcomes = new ArrayDeque<>();
+        private final List<LlmPrivacyMode> privacyModes = new ArrayList<>();
+        private final List<LlmCompletionRequest> requests = new ArrayList<>();
+        private boolean configured = true;
+        private int callCount;
+
+        private FakeProvider(String name) {
+            this.name = name;
+        }
+
+        private FakeProvider reply(String model, String content) {
+            outcomes.add(new LlmCompletionResult(
+                    name,
+                    model,
+                    new OpenAiChatCompletionResponse.Message("assistant", content, List.of())
+            ));
+            return this;
+        }
+
+        private FakeProvider toolCall(String model, OpenAiToolCall toolCall) {
+            outcomes.add(new LlmCompletionResult(
+                    name,
+                    model,
+                    new OpenAiChatCompletionResponse.Message("assistant", null, List.of(toolCall))
+            ));
+            return this;
+        }
+
+        private FakeProvider fail(LlmProviderException exception) {
+            outcomes.add(exception);
+            return this;
+        }
+
+        private FakeProvider unconfigured() {
+            configured = false;
+            return this;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public boolean isConfigured() {
+            return configured;
+        }
+
+        @Override
+        public LlmCompletionResult complete(LlmCompletionRequest request) {
+            callCount++;
+            privacyModes.add(request.privacyMode());
+            requests.add(request);
+            Object outcome = outcomes.remove();
+            if (outcome instanceof LlmProviderException exception) {
+                throw exception;
+            }
+            return (LlmCompletionResult) outcome;
+        }
+
+        private int callCount() {
+            return callCount;
+        }
+
+        private LlmPrivacyMode lastPrivacyMode() {
+            return privacyModes.get(privacyModes.size() - 1);
+        }
+
+        private LlmCompletionRequest request(int index) {
+            return requests.get(index);
+        }
+    }
+}
