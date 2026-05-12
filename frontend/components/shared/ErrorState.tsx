@@ -19,6 +19,8 @@ function userMessage(code: string, message: string) {
       return "응답이 너무 오래 걸렸습니다. 잠시 후 다시 시도해주세요.";
     case "CONNECTOR_UNAVAILABLE":
       return "외부 서비스가 일시적으로 응답하지 않습니다.";
+    case "CHAT_UNAVAILABLE":
+      return "지금은 AI 응답이 잠시 어려워요. 조금 있다가 다시 물어봐 주세요.";
     case "VALIDATION_FAILED":
       return "입력값을 확인해주세요.";
     case "INVALID_ENVELOPE":

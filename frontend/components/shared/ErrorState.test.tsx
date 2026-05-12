@@ -7,6 +7,7 @@ describe("ErrorState", () => {
   it.each([
     ["CONNECTOR_TIMEOUT", "응답이 너무 오래 걸렸습니다. 잠시 후 다시 시도해주세요."],
     ["CONNECTOR_UNAVAILABLE", "외부 서비스가 일시적으로 응답하지 않습니다."],
+    ["CHAT_UNAVAILABLE", "지금은 AI 응답이 잠시 어려워요. 조금 있다가 다시 물어봐 주세요."],
     ["VALIDATION_FAILED", "입력값을 확인해주세요."],
     ["INVALID_ENVELOPE", "백엔드 응답 형식이 올바르지 않습니다."],
     ["NETWORK_ERROR", "백엔드에 연결할 수 없습니다. 서버 실행 상태를 확인해주세요."],
