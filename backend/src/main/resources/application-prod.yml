@@ -7,7 +7,7 @@ ssuai:
   connector:
     meal: real
     dorm-meal: real
-    chat: llm
+    chat: ${SSUAI_CONNECTOR_CHAT:mock}
   chat:
     llm:
       gemini:

@@ -24,6 +24,8 @@ Use a custom OpenAI-compatible provider layer over Spring `RestClient`.
 
 - `MockChatService` is the default for `dev` and `test`.
 - `LlmChatService` is enabled by `ssuai.connector.chat=llm`.
+- Production manifests default chat to `mock`; hosted LLM mode is an explicit
+  operator choice after API keys and quota are configured.
 - Provider order is config-driven.
 - Providers without API keys are skipped before any request is attempted.
 - Fallback is bounded by:
