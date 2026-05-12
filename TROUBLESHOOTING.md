@@ -29,6 +29,15 @@
 
 ---
 
+## 2026-05-12 — ArgoCD Image Updater helmvalues 경로와 CRD dry-run 한계
+
+- 맥락: Task 07 GitOps 작업에서 backend manifest를 Helm chart로 옮기고, ArgoCD Image Updater가 새 `sha-<full>` image tag를 `values.yaml`에 write-back 하도록 구성했습니다.
+- 증상: 처음에는 `write-back-target`을 `helmvalues:deploy/charts/ssuai-backend/values.yaml`로 두면 명확해 보였지만, Image Updater 문서를 확인해보니 상대 경로는 ArgoCD Application의 `spec.source.path` 기준으로 해석됩니다. 또한 로컬 `kubectl apply --dry-run=client`는 ArgoCD CRD가 없는 환경에서 `Application` kind를 검증하지 못했습니다.
+- 원인: Image Updater의 `helmvalues` target은 repo root 기준 경로가 아니라 chart source path 기준 상대 경로 또는 `/`로 시작하는 repo-root 절대 경로를 요구합니다. 로컬 Kubernetes context에는 ArgoCD CRD가 설치되어 있지 않아 REST mapper가 `argoproj.io/v1alpha1 Application`을 알 수 없었습니다.
+- 해결: `write-back-target`을 chart 내부 파일 기준인 `helmvalues:values.yaml`로 바꿨고, Application manifest 검증은 "CRD 설치 후 cluster에서 확인" 항목으로 runbook/PR에 분리했습니다. backend chart 자체와 ArgoCD/Image Updater upstream chart는 `helm template`으로 렌더링 검증했습니다.
+- 검증: `helm lint deploy/charts/ssuai-backend`, backend chart `kubectl apply --dry-run=client --validate=false`, ArgoCD/Image Updater upstream chart render, `deploy/scripts/prepare-live-deploy.ps1` temp render, GitHub PR #43 CI/gitleaks가 모두 통과했습니다.
+- 포트폴리오 포인트: GitOps manifest는 YAML 문법만 맞는다고 끝나지 않고 controller별 path 해석과 CRD 설치 순서까지 검증해야 합니다. 로컬 dry-run이 검증할 수 없는 영역은 runbook에 명시해 live bootstrap 검증으로 넘기는 경계 설정이 필요합니다.
+
 ## 2026-05-12 — chatbot fallback이 한 질문에서 과도한 LLM 호출을 만들 수 있음
 
 - 맥락: chatbot provider fallback과 OpenRouter free model 후보를 늘린 뒤, 토큰 사용 구조를 점검했습니다.
