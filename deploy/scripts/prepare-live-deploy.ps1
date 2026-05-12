@@ -10,9 +10,13 @@ param(
 
     [string]$Image = "ghcr.io/hoeongj/ssuai-backend:latest",
 
-    [string]$SourceDir = "deploy/k8s",
+    [string]$ChartDir = "deploy/charts/ssuai-backend",
 
-    [string]$OutputDir = "deploy/generated/k8s"
+    [string]$ClusterIssuerTemplate = "deploy/cluster-bootstrap/clusterissuer.yaml",
+
+    [string]$OutputDir = "deploy/generated/gitops-breakglass",
+
+    [string]$HelmExecutable = "helm"
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,47 +40,72 @@ function Require-HostOnly {
     }
 }
 
-Require-HostOnly -CheckHost $BackendHost
-function Replace-FileText {
-    param(
-        [string]$Path,
-        [hashtable]$Replacements
-    )
+function Split-TaggedImage {
+    param([string]$TaggedImage)
 
-    $content = Get-Content -Raw -Encoding UTF8 $Path
-    foreach ($key in $Replacements.Keys) {
-        $content = $content.Replace($key, [string]$Replacements[$key])
+    $lastSlash = $TaggedImage.LastIndexOf("/")
+    $lastColon = $TaggedImage.LastIndexOf(":")
+
+    if ($lastColon -le $lastSlash -or $lastColon -eq ($TaggedImage.Length - 1)) {
+        throw "Image must include a tag, for example ghcr.io/hoeongj/ssuai-backend:sha-<full-sha>. Received: $TaggedImage"
     }
-    Set-Content -Encoding UTF8 -NoNewline -Path $Path -Value $content
+
+    return @{
+        Repository = $TaggedImage.Substring(0, $lastColon)
+        Tag = $TaggedImage.Substring($lastColon + 1)
+    }
 }
 
+Require-HostOnly -CheckHost $BackendHost
 Require-NoTrailingSlash -Name "FrontendOrigin" -Value $FrontendOrigin
 
-if (-not (Test-Path $SourceDir)) {
-    throw "SourceDir not found: $SourceDir"
+if (-not (Test-Path $ChartDir)) {
+    throw "ChartDir not found: $ChartDir"
 }
+
+if (-not (Test-Path $ClusterIssuerTemplate)) {
+    throw "ClusterIssuerTemplate not found: $ClusterIssuerTemplate"
+}
+
+if (-not (Get-Command $HelmExecutable -ErrorAction SilentlyContinue)) {
+    throw "Helm executable was not found: $HelmExecutable"
+}
+
+$imageParts = Split-TaggedImage -TaggedImage $Image
+$tlsSecretName = (($BackendHost -replace "[^A-Za-z0-9-]", "-") + "-tls")
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-Copy-Item -Force -Path (Join-Path $SourceDir "*.yaml") -Destination $OutputDir
 
-Replace-FileText -Path (Join-Path $OutputDir "clusterissuer.yaml") -Replacements @{
-    "REPLACE_WITH_OPERATOR_EMAIL@example.com" = $OperatorEmail
+$clusterIssuer = Get-Content -Raw -Encoding UTF8 $ClusterIssuerTemplate
+$clusterIssuer = $clusterIssuer.Replace("REPLACE_WITH_OPERATOR_EMAIL@example.com", $OperatorEmail)
+Set-Content -Encoding UTF8 -NoNewline -Path (Join-Path $OutputDir "clusterissuer.yaml") -Value $clusterIssuer
+
+$helmArgs = @(
+    "template",
+    "ssuai-backend",
+    $ChartDir,
+    "--namespace",
+    "ssuai-prod",
+    "--set-string",
+    "image.repository=$($imageParts.Repository)",
+    "--set-string",
+    "image.tag=$($imageParts.Tag)",
+    "--set-string",
+    "env.frontendOrigin=$FrontendOrigin",
+    "--set-string",
+    "ingress.host=$BackendHost",
+    "--set-string",
+    "ingress.tlsSecretName=$tlsSecretName"
+)
+
+$rendered = & $HelmExecutable @helmArgs 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "helm template failed: $($rendered -join [Environment]::NewLine)"
 }
 
-Replace-FileText -Path (Join-Path $OutputDir "ingress.yaml") -Replacements @{
-    "ssuai-api.duckdns.org" = $BackendHost
-    "ssuai-api-tls" = (($BackendHost -replace "[^A-Za-z0-9-]", "-") + "-tls")
-}
+Set-Content -Encoding UTF8 -Path (Join-Path $OutputDir "backend.yaml") -Value ($rendered -join [Environment]::NewLine)
 
-Replace-FileText -Path (Join-Path $OutputDir "configmap.yaml") -Replacements @{
-    "https://ssuai.vercel.app" = $FrontendOrigin
-}
-
-Replace-FileText -Path (Join-Path $OutputDir "deployment.yaml") -Replacements @{
-    "ghcr.io/hoeongj/ssuai-backend:latest" = $Image
-}
-
-Write-Host "Generated deploy manifests:"
+Write-Host "Generated break-glass deploy manifests:"
 Write-Host "- $OutputDir"
 Write-Host ""
 Write-Host "Backend MCP endpoint:"

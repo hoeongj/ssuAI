@@ -33,7 +33,9 @@ ideally before they reach the local commit. Two layers:
 1. `.gitleaks.toml` — start from the gitleaks default config (no allowlist
    yet), with one project-specific allowlist for known false positives:
    - `docs/security.md` itself (mentions of "JWT", "API key" as terms),
-   - `deploy/k8s/secret.example.yaml` (placeholder strings only).
+   - `deploy/charts/ssuai-backend/templates/secret.example.yaml`
+     and `deploy/argocd/image-updater/secret.example.yaml`
+     (placeholder strings only).
 2. `.github/workflows/security.yml` — new workflow named "Security",
    one job:
    - `gitleaks/gitleaks-action@v2` (or pin to a specific SHA — pin is
@@ -98,7 +100,8 @@ paths = [
 [[allowlists]]
 description = "ssuAI: deploy templates with placeholder values"
 paths = [
-    '''deploy/k8s/secret\.example\.yaml''',
+    '''deploy/charts/ssuai-backend/templates/secret\.example\.yaml''',
+    '''deploy/argocd/image-updater/secret\.example\.yaml''',
 ]
 ```
 
@@ -223,7 +226,9 @@ Title: `chore(security): add gitleaks CI + optional lefthook pre-commit`
 - `lefthook.yml` — optional local pre-commit hook running the same
   scan against the staged diff. Cross-platform (no Python).
 - `.gitleaks.toml` — extends gitleaks defaults; one allowlist for
-  `docs/security.md`, `docs/architecture.md`, `deploy/k8s/secret.example.yaml`.
+  `docs/security.md`, `docs/architecture.md`,
+  `deploy/charts/ssuai-backend/templates/secret.example.yaml`,
+  `deploy/argocd/image-updater/secret.example.yaml`.
 
 ## Why
 `docs/security.md` §1 lists accidental secret commits as the most

@@ -5,6 +5,9 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-12
 
+- 2026-05-12: Task 07 GitOps - ArgoCD + Helm + Image Updater 산출물 정리.
+  `deploy/k8s` raw manifest 를 chart 로 이관하고, 실제 클러스터 sync 검증은
+  ArgoCD CRD/PAT/클러스터 접근 준비 후 진행하도록 runbook 에 분리.
 - 2026-05-12: Chatbot slice WIP 정리. `POST /api/chat`, `/chat` page,
   mock/LLM provider abstraction, bounded fallback budget, compact tool
   result 정책을 `feat/chatbot-slice` 브랜치 기준으로 문서화. ADR 0009 추가.

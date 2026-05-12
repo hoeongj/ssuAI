@@ -1,5 +1,5 @@
 param(
-    [string]$ManifestDir = "deploy/generated/k8s"
+    [string]$ManifestDir = "deploy/generated/gitops-breakglass"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,11 +14,7 @@ if (-not (Test-Path $ManifestDir)) {
 
 $files = @(
     "clusterissuer.yaml",
-    "namespace.yaml",
-    "configmap.yaml",
-    "service.yaml",
-    "deployment.yaml",
-    "ingress.yaml"
+    "backend.yaml"
 )
 
 foreach ($file in $files) {

@@ -63,8 +63,8 @@ portfolio story, but this slice prioritizes a small safe MVP.
    - dashboard link to `/chat`
    - `CHAT_UNAVAILABLE` error UX
 5. Deployment templates:
-   - LLM API key placeholders in `deploy/k8s/secret.example.yaml`
-   - fallback budget env vars in `deploy/k8s/configmap.yaml`
+   - LLM API key placeholders in `deploy/charts/ssuai-backend/templates/secret.example.yaml`
+   - fallback budget env vars in `deploy/charts/ssuai-backend/values.yaml`
 6. Tests:
    - controller validation/envelope tests
    - mock service tests
