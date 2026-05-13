@@ -5,6 +5,10 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-13
 
+- 2026-05-13: `McpSelfDogfoodTests` 추가. `@SpringBootTest(RANDOM_PORT)` 환경에서
+  Spring AI MCP client 를 수동 build 해 자기 `/sse` 에 `listTools` + `callTool`
+  라운드트립 검증. ADR 0010 의 "MCP server 가 자체 프로세스에서도 호출 가능"
+  주장을 unit mock 이 아니라 실제 SSE 핸드셰이크로 보호.
 - 2026-05-13: Chatbot self-dogfoods MCP server. `LlmChatService` 가 in-process
   `MealMcpTools/DormMcpTools/CampusMcpTools` 직접 호출 대신 Spring AI MCP client
   (`spring-ai-starter-mcp-client`) 로 자기 자신의 `/sse` 를 통해 4개 tool 을 호출.
