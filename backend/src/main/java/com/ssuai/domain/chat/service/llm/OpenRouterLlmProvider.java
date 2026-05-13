@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -13,7 +13,7 @@ import org.springframework.web.client.RestClient;
 import com.ssuai.domain.chat.config.LlmChatProperties;
 
 @Component
-@ConditionalOnExpression("'${ssuai.connector.chat:mock}' == 'llm' or '${ssuai.connector.chat:mock}' == 'openrouter'")
+@ConditionalOnProperty(name = "ssuai.connector.chat", havingValue = "llm")
 public class OpenRouterLlmProvider extends OpenAiCompatibleProvider {
 
     private final LlmChatProperties.OpenRouterProvider properties;

@@ -2,14 +2,14 @@ package com.ssuai.domain.chat.service.llm;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.ssuai.domain.chat.config.LlmChatProperties;
 
 @Component
-@ConditionalOnExpression("'${ssuai.connector.chat:mock}' == 'llm' or '${ssuai.connector.chat:mock}' == 'openrouter'")
+@ConditionalOnProperty(name = "ssuai.connector.chat", havingValue = "llm")
 public class MistralLlmProvider extends DirectLlmProvider {
 
     private final LlmChatProperties.MistralProvider properties;

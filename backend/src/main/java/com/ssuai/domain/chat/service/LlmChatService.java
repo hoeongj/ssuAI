@@ -15,7 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import com.ssuai.domain.chat.config.LlmChatProperties;
@@ -40,7 +40,7 @@ import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 import com.ssuai.global.exception.ChatUnavailableException;
 
 @Service
-@ConditionalOnExpression("'${ssuai.connector.chat:mock}' == 'llm' or '${ssuai.connector.chat:mock}' == 'openrouter'")
+@ConditionalOnProperty(name = "ssuai.connector.chat", havingValue = "llm")
 public class LlmChatService implements ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(LlmChatService.class);

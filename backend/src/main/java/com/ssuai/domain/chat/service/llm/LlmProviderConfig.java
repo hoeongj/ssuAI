@@ -1,6 +1,6 @@
 package com.ssuai.domain.chat.service.llm;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -8,7 +8,7 @@ import org.springframework.web.client.RestClient;
 import com.ssuai.domain.chat.config.LlmChatProperties;
 
 @Configuration
-@ConditionalOnExpression("'${ssuai.connector.chat:mock}' == 'llm' or '${ssuai.connector.chat:mock}' == 'openrouter'")
+@ConditionalOnProperty(name = "ssuai.connector.chat", havingValue = "llm")
 class LlmProviderConfig {
 
     @Bean
