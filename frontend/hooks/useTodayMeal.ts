@@ -3,12 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { getTodayMeal } from "@/lib/api/meal";
-import { millisecondsUntilNextSeoulMidnight } from "@/lib/utils";
+import * as utils from "@/lib/utils";
 
 export function useTodayMeal() {
   return useQuery({
     queryKey: ["meal", "today"],
     queryFn: getTodayMeal,
-    staleTime: millisecondsUntilNextSeoulMidnight(),
+    staleTime: utils.millisecondsUntilNextSeoulMidnight(),
+    refetchInterval: () => utils.millisecondsUntilNextSeoulMidnight(),
   });
 }
