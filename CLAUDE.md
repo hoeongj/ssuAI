@@ -26,7 +26,6 @@ Adjust your guidance accordingly:
   by one student
 
 ## Review Style
-
 When reviewing code:
 
 1. Architecture consistency (against `docs/architecture.md`)
@@ -53,7 +52,6 @@ Recommended next action:
 Do not rewrite full code unless explicitly asked. Prefer targeted feedback.
 
 ## Design Style
-
 When designing a feature, produce a doc with:
 
 1. Goal / Scope / Non-goals
@@ -67,171 +65,83 @@ When designing a feature, produce a doc with:
 Do not write production code during design unless explicitly asked.
 
 ## Git & AI Workflow
-
-Before changes:
-- check `git status`
-- confirm current task scope
-- avoid modifying unrelated files
-
-After changes:
-- summarize changed files
-- recommend verification commands
-- encourage a small, focused commit
+Before changes, check `git status`, confirm scope, and avoid unrelated files.
+After changes, summarize changed files, recommend verification, and encourage a
+small focused commit.
 
 Troubleshooting:
-- Troubleshooting entries are portfolio-worthy only. Do not add an entry merely
+- Troubleshooting entries are portfolio-worthy only; do not add one just
   because a commit, PR, or dev-log entry exists.
-- Add to root `TROUBLESHOOTING.md` in Korean when work reveals a real bug,
-  failed/flaky verification, deployment or CI failure, external integration
-  mismatch, security/privacy risk, surprising architecture tradeoff,
-  user-visible regression, or a fix that would be useful in a portfolio
-  interview.
-- Keep entries concise, include symptom/root cause/fix/verification, and never
+- Add to root `TROUBLESHOOTING.md` in Korean for real bugs, failed/flaky
+  verification, deployment or CI failures, external integration mismatches,
+  security/privacy risks, surprising architecture tradeoffs, user-visible
+  regressions, or fixes useful in a portfolio interview.
+- Keep entries concise with symptom/root cause/fix/verification, and never
   include secrets or personal student data.
 
 CI / token usage:
-- Do not use long-running GitHub Actions polling such as `gh run watch` or
-  `gh pr checks --watch`. Prefer one-shot status checks (`gh pr checks`,
-  `gh run list --limit 5`, `gh run view --json ...`), then summarize.
-- When a CI job fails, do not paste or read the full raw log unless the user
-  explicitly asks. Inspect only the failing step or the last 50-100 lines and
-  report the actionable error.
+- Avoid long-running GitHub Actions polling such as `gh run watch` or
+  `gh pr checks --watch`; use one-shot checks (`gh pr checks`,
+  `gh run list --limit 5`, `gh run view --json ...`) and summarize.
+- For CI failures, inspect only the failing step or last 50-100 lines unless
+  the user explicitly asks for full logs.
 
 Remote server / phone workflow:
-- When the user says they are on the server, VPS, remote machine, or
-  "서버로 접속했어", treat that server clone as the active development
-  machine.
-- Assume GitHub is the sync source between the home PC and the server. Prefer a
-  persistent server clone with `git pull --ff-only` / `git push`; do not guide
-  the user to reclone every phone session unless the server has no repo yet.
-- Point Codex to Linux/macOS verification commands such as `./gradlew test`
-  when the task is intended for the server, unless the actual shell indicates
-  Windows.
-- Remind the user that unpushed home-PC changes and gitignored `.codex/` files
-  are not automatically visible on the server.
+- If the user is on a server/VPS/remote machine or says "서버로 접속했어", treat
+  that clone as active.
+- Use GitHub as the sync source; prefer `git pull --ff-only` / `git push` on a
+  persistent clone, and do not suggest recloning unless no repo exists.
+- Point Codex to Linux/macOS commands such as `./gradlew test` unless the shell
+  is Windows.
+- Remind the user that unpushed changes and gitignored `.codex/` files do not
+  sync automatically.
 - Keep private server details, SSH info, tokens, and `.env` values out of
-  committed docs. Use gitignored local notes such as `.codex/environment.md`
-  for machine-specific context.
+  committed docs; use gitignored local notes for machine-specific context.
 
 Session close sync:
-- When the user says "대화 종료" or that they are stopping for now, first check
-  `git status --short --branch` before the final close-out.
-- Do not automatically commit or push unfinished work just because the user is
-  ending the conversation. Summarize uncommitted changes and ask for explicit
-  permission.
-- If the user explicitly says to sync, push, or "대화 종료하고 sync까지", help
-  commit and push only the intended project changes after relevant verification
-  when feasible.
-- Remind the user that `.codex/` is gitignored if they need to continue the
-  exact Claude/Codex hand-off state from another machine.
+- On "대화 종료" or stop-for-now messages, first check
+  `git status --short --branch`.
+- Do not auto-commit/push unfinished work on close-out alone; summarize changes
+  and ask for explicit permission.
+- If the user explicitly asks to sync/push, commit and push only intended
+  changes after relevant verification when feasible.
+- Remind the user that `.codex/` is gitignored if they need exact hand-off
+  state on another machine.
 
 The user is the final decision maker. Do not silently make broad
 architectural changes — propose, then wait.
 
 ## Codex Hand-off
+Codex hand-off 의 운영 세부는 AGENTS.md의 `Hand-off Convention`,
+`Standard Codex task flow`, `Efficient Hand-off Contract`, and
+`Codex Result Hand-off` sections가 source of truth다. This cross-reference
+keeps this file focused on Claude's architect/reviewer responsibilities.
 
-When you produce per-task implementation instructions for Codex, save them
-to `.codex/current-task.md` (gitignored, single rolling file — overwritten
-each time). The developer sends Codex a fixed one-liner pointing at this
-file. Full convention is in `AGENTS.md` ("Hand-off Convention" section).
+When you produce Codex work, save the executable task to
+`.codex/current-task.md` (gitignored, single rolling file). Use the minimal
+AGENTS.md task template: Goal, Scope, Expected files, Acceptance criteria,
+Verification, Stop and flag. Add optional headings only when they materially
+shorten review or preserve context.
 
-For larger feature specs, write the spec to `docs/tasks/<NN>-<name>.md`
-(committed) and use `.codex/current-task.md` as a short pointer to it.
+For larger durable specs, write `docs/tasks/<NN>-<name>.md` and make
+`.codex/current-task.md` a short pointer to it.
 
-### Efficient Hand-off Format
-
-Keep the existing loop: **Claude designs → Codex implements → Claude reviews**.
-Make each Codex task self-contained enough to execute without broad context
-search:
-
-```markdown
-# Codex task: <short title>
-
-State: ready
-Spec: docs/tasks/<NN>-<name>.md or inline
-
-Context to read:
-- AGENTS.md
-- docs/architecture.md#<relevant heading>
-- docs/security.md#<relevant heading>
-
-Goal:
-- <one outcome>
-
-Scope:
-- In: <allowed changes>
-- Out: <explicit non-goals>
-
-Expected files:
-- <likely files or directories>
-
-Acceptance criteria:
-- <observable behavior>
-
-Verification:
-- <exact commands, from exact directories>
-
-Stop and flag:
-- <missing info, forbidden real endpoint, secret risk, broad scope trigger>
-
-Claude review checklist:
-- <what you will verify after Codex reports done>
-
-Next task candidates:
-- <optional 1-3 follow-up candidates, not authorization to implement>
-```
-
-Efficiency rules:
-
-- Keep `.codex/current-task.md` under roughly 120 lines for small tasks. Use a
-  committed `docs/tasks/` spec only when the design itself is durable.
-- Point Codex to exact document headings instead of asking it to reread every
-  long project document by default.
-- Include exact verification commands and expected changed files.
-- Write `State: blocked` or `State: no active task` when there is no executable
-  work. Codex should then stop quickly instead of exploring the repository.
-- After Codex finishes, review against the task's acceptance criteria and
-  review checklist. If it passes, either mark the work complete or immediately
-  write the next ready task so the loop does not idle.
-- If review passes and there is an obvious next small task, overwrite
-  `.codex/current-task.md` with that next `State: ready` task before replying.
-  Mention that the next Codex task is ready. If no next task is clear, write
-  `State: no active task` with 1-3 concrete candidates under
-  `Next task candidates`.
-
-### Codex Result Review
-
-After Codex implements a task, ask Claude to read both rolling files:
+After Codex implements a task, review both rolling files:
 
 ```text
 Read .codex/current-task.md and .codex/last-result.md, then review the
 implementation against the task's acceptance criteria and review checklist.
 ```
 
-Codex must write `.codex/last-result.md` after any file-changing task. Treat it
-as the implementation receipt: summary, verification commands/results,
-troubleshooting decision, changed files, and notes for review.
-
-During review, check the `Troubleshooting decision` section. If Codex marked
-`Added to TROUBLESHOOTING.md: no`, verify that the reason is credible. If a
-portfolio-worthy trigger exists, ask Codex to add the missing entry before
-closing the task.
-
-When the review is complete:
-
-- If changes pass, prepare the next `.codex/current-task.md` immediately when a
-  scoped follow-up is clear.
-- If changes need fixes, write a focused fix task to `.codex/current-task.md`
-  instead of giving broad review commentary for the developer to translate.
-- If no work should continue, write `State: no active task` so Codex exits
-  quickly on the next hand-off.
+During review, check acceptance criteria, verification results, changed files,
+and `Troubleshooting decision`. If changes pass, prepare the next
+`.codex/current-task.md` when a scoped follow-up is clear. If changes need
+fixes, write a focused fix task. If no work should continue, write
+`State: no active task` so Codex exits quickly next time.
 
 ## Claude Code Usage
-
-- Use design-first responses for large tasks; produce a plan before editing.
-- Use `/clear` between unrelated tasks to keep context clean.
-- Use `/memory` to confirm this file is loaded.
+Use design-first responses for large tasks, `/clear` between unrelated tasks,
+and `/memory` to confirm this file is loaded.
 
 ## Current Phase
-
 See `docs/tasks/` for active and pending task specs.

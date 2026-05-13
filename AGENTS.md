@@ -45,24 +45,45 @@ Per-task instructions from Claude live in **one rolling file**:
 You MUST read `.codex/current-task.md` at the start of every session
 triggered by the one-liner above, before touching any code.
 
+## Standard Codex task flow
+
+Unless the task says otherwise or explicitly stops before git operations, a
+ready Codex task follows this default chain:
+
+`implement → verify → commit → switch -c <branch> → push -u → gh pr create → gh pr checks <PR> 1회`
+
+Rules for the standard flow:
+
+- Branch names use a clear prefix: `fix/`, `refactor/`, `chore/`, or `feat/`
+  plus a short kebab-case description.
+- Commit messages use Conventional Commits, such as `fix(backend): ...` or
+  `chore(workflow): ...`.
+- PR titles should mirror the commit message unless the task provides a more
+  reviewer-friendly title.
+- The PR body should copy the task's Goal, reason, notable decisions,
+  troubleshooting decision, verification results, and linked task into the PR
+  template.
+- CI 확인은 Working Rule 11을 따른다. `gh run watch`나
+  `gh pr checks --watch` 같은 polling은 금지하고, `gh pr checks <PR>`를 한
+  번 조회한 뒤 결과만 요약한다.
+- If verification fails, secrets/local-only files appear, or the intended
+  change set is ambiguous, stop before commit/push and report the blocker.
+
 ## Efficient Hand-off Contract
 
 The workflow remains **Claude designs → Codex implements → Claude reviews**.
 Efficiency comes from making each hand-off precise enough that Codex can avoid
 open-ended rediscovery and Claude can review against the same checklist.
+The standard implementation, git, PR, and one-shot CI flow above applies by
+default; do not repeat it inside every task unless the task deviates from it.
 
-Claude should write `.codex/current-task.md` using this shape whenever possible:
+Claude should write `.codex/current-task.md` using this minimal Codex task spec template whenever possible:
 
 ```markdown
 # Codex task: <short title>
 
 State: ready
 Spec: docs/tasks/<NN>-<name>.md or inline
-
-Context to read:
-- AGENTS.md
-- docs/architecture.md#<relevant heading>
-- docs/security.md#<relevant heading>
 
 Goal:
 - <one outcome>
@@ -82,12 +103,6 @@ Verification:
 
 Stop and flag:
 - <missing info, forbidden real endpoint, secret risk, broad scope trigger>
-
-Claude review checklist:
-- <what Claude should verify after Codex reports done>
-
-Next task candidates:
-- <optional 1-3 follow-up candidates, not authorization to implement>
 ```
 
 Rules for keeping the loop fast:
@@ -97,11 +112,16 @@ Rules for keeping the loop fast:
 - Reference only the product, architecture, or security sections that matter
   for the task. Do not paste long source-of-truth documents into
   `.codex/current-task.md`.
+- Add `Context to read` only when exact sections are needed and not obvious
+  from the Expected files.
 - Put exact verification commands in the hand-off. Avoid long-running CI
   polling; use the one-shot CI checks in Working Rule 11.
 - Include expected files so Codex can notice accidental scope creep. Codex may
   touch a different file if the repo requires it, but must call that out in the
   final summary.
+- `Portfolio narrative`, `TROUBLESHOOTING.md 판단 가이드`,
+  `Claude review checklist`, and `Next task candidates` are optional headings.
+  If omitted, the Standard Codex task flow and Working Rule 10 still apply.
 - If `State:` is `blocked` or `no active task`, Codex must not implement. It
   should report the blocker and the smallest next hand-off needed from Claude.
 - After Claude review passes, Claude should overwrite `.codex/current-task.md`
