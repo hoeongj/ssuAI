@@ -8,29 +8,6 @@ ssuai:
     meal: real
     dorm-meal: real
     chat: ${SSUAI_CONNECTOR_CHAT:mock}
-  chat:
-    llm:
-      gemini:
-        api-key: ${SSUAI_GEMINI_API_KEY:}
-      groq:
-        api-key: ${SSUAI_GROQ_API_KEY:}
-      cerebras:
-        api-key: ${SSUAI_CEREBRAS_API_KEY:}
-      deepinfra:
-        api-key: ${SSUAI_DEEPINFRA_API_KEY:}
-      sambanova:
-        api-key: ${SSUAI_SAMBANOVA_API_KEY:}
-      nscale:
-        api-key: ${SSUAI_NSCALE_API_KEY:}
-      fireworks:
-        api-key: ${SSUAI_FIREWORKS_API_KEY:}
-      huggingface:
-        api-key: ${SSUAI_HUGGINGFACE_API_KEY:}
-      mistral:
-        api-key: ${SSUAI_MISTRAL_API_KEY:}
-        training-opt-out-confirmed: ${SSUAI_MISTRAL_TRAINING_OPT_OUT_CONFIRMED:false}
-      openrouter:
-        api-key: ${SSUAI_OPENROUTER_API_KEY:}
   # Production CORS allowlist — exactly one origin (the deployed Vercel
   # project), wired into WebCorsProdConfig. The value is supplied at
   # deploy time via the SSUAI_FRONTEND_ORIGIN env var (set on the
