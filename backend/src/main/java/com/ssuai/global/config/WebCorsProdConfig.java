@@ -24,11 +24,6 @@ public class WebCorsProdConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOrigins(frontendOrigin)
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(false)
-                .maxAge(3600);
+        ApiCorsDefaults.register(registry, frontendOrigin);
     }
 }

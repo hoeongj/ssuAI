@@ -6,17 +6,11 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-@Profile("dev")
+@Profile({"dev", "default"})
 public class WebCorsConfig implements WebMvcConfigurer {
 
-    // Production CORS allowlist belongs to Task 06.
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:3000")
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(false)
-                .maxAge(3600);
+        ApiCorsDefaults.register(registry, "http://localhost:3000");
     }
 }
