@@ -1,8 +1,8 @@
 package com.ssuai.domain.chat.controller;
 
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -53,7 +53,7 @@ class ChatControllerTests {
                 .andExpect(jsonPath("$.data.conversationId").value(matchesPattern("^c-[0-9a-f]{8}$")))
                 .andExpect(jsonPath("$.data.reply").value("오늘 학식은 mock 메뉴예요."))
                 .andExpect(jsonPath("$.error").value(nullValue()))
-                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+                .andExpect(jsonPath("$.traceId").value(not(emptyOrNullString())));
     }
 
     @Test
@@ -137,6 +137,6 @@ class ChatControllerTests {
                                 """))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("CHAT_UNAVAILABLE"))
-                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+                .andExpect(jsonPath("$.traceId").value(not(emptyOrNullString())));
     }
 }

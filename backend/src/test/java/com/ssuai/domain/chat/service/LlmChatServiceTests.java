@@ -293,10 +293,10 @@ class LlmChatServiceTests {
     }
 
     private static McpSchema.CallToolResult toolTextResult(String text) {
-        return new McpSchema.CallToolResult(
-                List.<McpSchema.Content>of(new McpSchema.TextContent(text)),
-                Boolean.FALSE
-        );
+        return McpSchema.CallToolResult.builder()
+                .content(List.<McpSchema.Content>of(new McpSchema.TextContent(text)))
+                .isError(Boolean.FALSE)
+                .build();
     }
 
     private LlmChatService chatService(List<LlmProvider> providers, List<String> providerOrder) {

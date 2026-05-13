@@ -1,7 +1,7 @@
 package com.ssuai.domain.meal.controller;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,14 +57,14 @@ class MealControllerTests {
 
         mockMvc.perform(get("/api/meals/today"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.date").value(not(isEmptyOrNullString())))
+                .andExpect(jsonPath("$.data.date").value(not(emptyOrNullString())))
                 .andExpect(jsonPath("$.data.meals[0].restaurant").value("학생식당"))
                 .andExpect(jsonPath("$.data.meals[0].type").value("BREAKFAST"))
                 .andExpect(jsonPath("$.data.meals[0].corner").value("조식"))
                 .andExpect(jsonPath("$.data.meals[0].menu").value(not(empty())))
                 .andExpect(jsonPath("$.data.closures").value(empty()))
                 .andExpect(jsonPath("$.error").value(nullValue()))
-                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+                .andExpect(jsonPath("$.traceId").value(not(emptyOrNullString())));
     }
 
     @Test
@@ -78,7 +78,7 @@ class MealControllerTests {
                 .andExpect(jsonPath("$.data.startDate").value("2026-05-04"))
                 .andExpect(jsonPath("$.data.endDate").value("2026-05-10"))
                 .andExpect(jsonPath("$.error").value(nullValue()))
-                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+                .andExpect(jsonPath("$.traceId").value(not(emptyOrNullString())));
 
         verify(weeklyMealService).fetchWeeklyMeals(startDate);
     }
@@ -93,8 +93,8 @@ class MealControllerTests {
 
         mockMvc.perform(get("/api/meals/weekly"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.startDate").value(not(isEmptyOrNullString())))
-                .andExpect(jsonPath("$.data.endDate").value(not(isEmptyOrNullString())))
+                .andExpect(jsonPath("$.data.startDate").value(not(emptyOrNullString())))
+                .andExpect(jsonPath("$.data.endDate").value(not(emptyOrNullString())))
                 .andExpect(jsonPath("$.error").value(nullValue()));
 
         ArgumentCaptor<LocalDate> captor = ArgumentCaptor.forClass(LocalDate.class);

@@ -41,6 +41,7 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += '-parameters'
+    options.compilerArgs += '-Xlint:deprecation'
 }
 
 tasks.named('test') {

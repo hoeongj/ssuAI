@@ -1,6 +1,6 @@
 package com.ssuai.domain.dorm.controller;
 
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
@@ -62,6 +62,6 @@ class DormMealControllerTests {
                 .andExpect(jsonPath("$.data.days[0].closures[0].restaurant").value("레지던스홀 기숙사 식당"))
                 .andExpect(jsonPath("$.data.days[0].closures[0].reason").value("조식 미운영"))
                 .andExpect(jsonPath("$.error").value(nullValue()))
-                .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
+                .andExpect(jsonPath("$.traceId").value(not(emptyOrNullString())));
     }
 }
