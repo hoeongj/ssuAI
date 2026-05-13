@@ -3,6 +3,13 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-13
+
+- 2026-05-13: Chatbot self-dogfoods MCP server. `LlmChatService` 가 in-process
+  `MealMcpTools/DormMcpTools/CampusMcpTools` 직접 호출 대신 Spring AI MCP client
+  (`spring-ai-starter-mcp-client`) 로 자기 자신의 `/sse` 를 통해 4개 tool 을 호출.
+  Tool 응답은 `JsonNode` 기반 compaction + 8KB cap 으로 LLM context 보호. ADR 0010.
+
 ## 2026-05-12
 
 - 2026-05-12: Task 07 GitOps - ArgoCD + Helm + Image Updater 산출물 정리.

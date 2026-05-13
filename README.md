@@ -24,7 +24,7 @@ Live endpoints:
 |---|---|
 | **REST API** | `GET /api/meals/today`, `GET /api/meals/weekly`, `GET /api/dorm/meals/this-week`, `GET /api/campus/facilities?query=…` — all return the standard `ApiResponse<T>` envelope with `data` / `error` / `traceId`. |
 | **Web dashboard** | Next.js 16 App Router with 4 cards (today's cafeteria, weekly cafeteria, dorm weekly, facility search). Per-card loading / error / empty states. |
-| **Chatbot** | `/chat` page plus `POST /api/chat`. Default local/test/prod manifest mode is deterministic mock; production can explicitly enable bounded multi-provider LLM fallback for public campus questions only. |
+| **Chatbot** | `/chat` page plus `POST /api/chat`. Default local/test/prod manifest mode is deterministic mock; production can explicitly enable bounded multi-provider LLM fallback for public campus questions only. In LLM mode the chatbot calls the local MCP server over SSE via Spring AI's MCP client — self-dogfooding the protocol on every turn. |
 | **MCP server** | 4 tools (`get_today_meal`, `get_meal_by_date`, `get_dorm_weekly_meal`, `search_campus_facilities`) over SSE. Same Spring Boot process; usable from Claude Desktop, Claude Code, Cursor. See [`docs/mcp-tools.md`](docs/mcp-tools.md). |
 
 No login, no PII, no personalization yet — the MVP is intentionally
@@ -50,7 +50,7 @@ dev). Full design docs:
 - [`docs/security.md`](docs/security.md) — secrets, logging, CORS,
   outbound HTML treatment, dependency policy.
 - [`docs/adr/`](docs/adr/) — every load-bearing decision (currently
-  ADRs 0001-0009).
+  ADRs 0001-0010).
 
 ---
 

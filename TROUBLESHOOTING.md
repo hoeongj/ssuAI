@@ -34,6 +34,15 @@
 
 ---
 
+## 2026-05-13 — chatbot이 자기 MCP server를 HTTP/SSE로 self-dogfood 하도록 전환
+
+- 맥락: ADR 0009 chat slice 시점의 `LlmChatService`는 같은 JVM 안의 `MealMcpTools/DormMcpTools/CampusMcpTools` 빈을 일반 Java 메서드로 직접 호출했습니다. MCP server는 외부 클라이언트(Claude Desktop, Cursor)만 쓰는 비대칭 상태였고, 챗봇 경로에서 MCP request/response 표면이 검증되지 않았습니다.
+- 증상: 잠재 회귀 — MCP server side 변경이 chat 경로에서는 못 잡힙니다. 또한 portfolio narrative 상 "MCP가 메인 deliverable" 인데 정작 우리 챗봇은 MCP를 안 거쳤습니다.
+- 원인: ADR 0009에서 MCP client dogfooding을 "MVP 후속"으로 의도적으로 미뤘기 때문입니다. 그 시점에는 multi-provider fallback 안정화가 우선이었습니다.
+- 해결: `spring-ai-starter-mcp-client` (Spring AI 1.1.6, HttpClient + SSE) 추가. `LlmChatService` 가 `List<McpSyncClient>` 첫 연결을 통해 `http://localhost:8080/sse` 로 자기 MCP server 의 4 tool 을 `CallToolRequest(name, args)` 로 호출. 응답 `TextContent` 를 `JsonNode` 기반으로 compact + 8KB cap. `application-test.yml` 에서 `spring.ai.mcp.client.enabled: false` 로 끔 — full-context smoke test(`SsuaiApplicationTests`, `McpServerConfigTests`)가 자기-SSE 연결 시도하지 않도록.
+- 검증: `gradlew.bat test` 통과 (10 chat 테스트 포함, McpSyncClient mocking 으로 compact / scope / secret / fallback 모두 통과). 수동 `bootRun` + `curl /api/chat` 은 LLM provider api key 환경변수 필요라 별도.
+- 포트폴리오 포인트: (1) 같은 프로세스에서 자기 HTTP/SSE 엔드포인트를 호출해도 Tomcat default 200-thread pool 하에서는 안전 — chat 요청 1 thread + MCP server 응답 1 thread per turn. (2) Spring AI 1.1.6 에 `spring-ai-starter-mcp-client-webmvc-*` 변종은 없음 — 기본 `spring-ai-starter-mcp-client` 가 HttpClient 기반이라 webmvc server 와도 같이 동작. (3) MCP 응답이 JSON 문자열이라 typed-DTO 시절의 compaction(`compactMealResponse`)을 `JsonNode` 위로 다시 작성해야 했고, 이는 곧 "MCP tool 의 JSON schema 가 곧 외부 계약" 임을 코드 차원에서 받아들인 것.
+
 ## 2026-05-13 — chat CORS preflight가 POST를 막아 chatbot이 브라우저에서 실패
 
 - 맥락: chat slice는 `POST /api/chat`으로 동작하지만, CORS 설정은 `/api/**` preflight에서 `GET`, `OPTIONS`만 허용하고 있었습니다.
