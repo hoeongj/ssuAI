@@ -1,10 +1,21 @@
 # ssuAI Product Document
 
+> 이 문서는 ssuAI 의 단기 (Phase 1–2) 제품 정의입니다. 장기 4-layer
+> vision 과 phase 3–4 의 개인 데이터 / 에이전트 계획은
+> **[`docs/vision.md`](vision.md)** 가 source of truth 입니다.
+
 ## 1. One-line description
 
 ssuAI is an AI assistant for Soongsil University students that brings campus
 information — academics, courses, cafeteria, and library — into a single
 chatbot, web dashboard, and (later) mobile app.
+
+The long-term shape of the system is a 4-layer architecture: a public MCP
+server (Layer 1) that any MCP client can use, plus ssuAI's own web/app
+clients (Layer 2), an embedded chatbot (Layer 3), and an action-capable
+agent (Layer 4). See [`docs/vision.md`](vision.md) for the full picture.
+This document covers what we build *first* and *next*; the phases beyond
+that live in the vision document.
 
 ## 2. User problems this project solves
 
