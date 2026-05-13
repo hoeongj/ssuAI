@@ -28,7 +28,7 @@ import com.ssuai.domain.meal.dto.MealResponse;
 import com.ssuai.domain.meal.dto.MealType;
 import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 import com.ssuai.domain.meal.service.MealService;
-import com.ssuai.domain.meal.service.WeeklyMealExportService;
+import com.ssuai.domain.meal.service.WeeklyMealService;
 
 @ActiveProfiles("test")
 @WebMvcTest(MealController.class)
@@ -40,7 +40,7 @@ class MealControllerTests {
     private MealService mealService;
 
     @MockitoBean
-    private WeeklyMealExportService weeklyMealExportService;
+    private WeeklyMealService weeklyMealService;
 
     @Autowired
     MealControllerTests(MockMvc mockMvc) {
@@ -71,7 +71,7 @@ class MealControllerTests {
     void getWeeklyMealsWithStartDateReturnsSuccessEnvelope() throws Exception {
         LocalDate startDate = LocalDate.of(2026, 5, 4);
         WeeklyMealResponse response = new WeeklyMealResponse(startDate, LocalDate.of(2026, 5, 10), List.of());
-        when(weeklyMealExportService.fetchWeeklyMeals(startDate)).thenReturn(response);
+        when(weeklyMealService.fetchWeeklyMeals(startDate)).thenReturn(response);
 
         mockMvc.perform(get("/api/meals/weekly").param("startDate", "2026-05-04"))
                 .andExpect(status().isOk())
@@ -80,12 +80,12 @@ class MealControllerTests {
                 .andExpect(jsonPath("$.error").value(nullValue()))
                 .andExpect(jsonPath("$.traceId").value(not(isEmptyOrNullString())));
 
-        verify(weeklyMealExportService).fetchWeeklyMeals(startDate);
+        verify(weeklyMealService).fetchWeeklyMeals(startDate);
     }
 
     @Test
     void getWeeklyMealsWithoutStartDateDefaultsToMonday() throws Exception {
-        when(weeklyMealExportService.fetchWeeklyMeals(any(LocalDate.class)))
+        when(weeklyMealService.fetchWeeklyMeals(any(LocalDate.class)))
                 .thenAnswer(invocation -> {
                     LocalDate startDate = invocation.getArgument(0);
                     return new WeeklyMealResponse(startDate, startDate.plusDays(6), List.of());
@@ -98,7 +98,7 @@ class MealControllerTests {
                 .andExpect(jsonPath("$.error").value(nullValue()));
 
         ArgumentCaptor<LocalDate> captor = ArgumentCaptor.forClass(LocalDate.class);
-        verify(weeklyMealExportService).fetchWeeklyMeals(captor.capture());
+        verify(weeklyMealService).fetchWeeklyMeals(captor.capture());
         LocalDate resolved = captor.getValue();
         org.assertj.core.api.Assertions.assertThat(resolved.getDayOfWeek()).isEqualTo(DayOfWeek.MONDAY);
     }

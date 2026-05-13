@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ssuai.domain.meal.dto.MealResponse;
 import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 import com.ssuai.domain.meal.service.MealService;
-import com.ssuai.domain.meal.service.WeeklyMealExportService;
+import com.ssuai.domain.meal.service.WeeklyMealService;
 import com.ssuai.global.response.ApiResponse;
 
 @Validated
@@ -31,11 +31,11 @@ public class MealController {
     private static final int ISO_DATE_LENGTH = 10;
 
     private final MealService mealService;
-    private final WeeklyMealExportService weeklyMealExportService;
+    private final WeeklyMealService weeklyMealService;
 
-    public MealController(MealService mealService, WeeklyMealExportService weeklyMealExportService) {
+    public MealController(MealService mealService, WeeklyMealService weeklyMealService) {
         this.mealService = mealService;
-        this.weeklyMealExportService = weeklyMealExportService;
+        this.weeklyMealService = weeklyMealService;
     }
 
     @GetMapping("/today")
@@ -53,7 +53,7 @@ public class MealController {
             String startDate
     ) {
         LocalDate resolved = resolveStartDate(startDate);
-        return ApiResponse.success(weeklyMealExportService.fetchWeeklyMeals(resolved));
+        return ApiResponse.success(weeklyMealService.fetchWeeklyMeals(resolved));
     }
 
     private LocalDate resolveStartDate(String startDate) {

@@ -32,7 +32,7 @@ class WeeklyMealExportRunner implements ApplicationRunner {
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final String DEFAULT_OUTPUT_DIRECTORY = "exports/meal";
 
-    private final WeeklyMealExportService weeklyMealExportService;
+    private final WeeklyMealService weeklyMealService;
     private final DormMealService dormMealService;
     private final ObjectMapper objectMapper;
     private final ApplicationContext applicationContext;
@@ -40,14 +40,14 @@ class WeeklyMealExportRunner implements ApplicationRunner {
     private final String configuredOutputPath;
 
     WeeklyMealExportRunner(
-            WeeklyMealExportService weeklyMealExportService,
+            WeeklyMealService weeklyMealService,
             DormMealService dormMealService,
             ObjectMapper objectMapper,
             ApplicationContext applicationContext,
             @Value("${ssuai.meal.export.start-date:}") String configuredStartDate,
             @Value("${ssuai.meal.export.output:}") String configuredOutputPath
     ) {
-        this.weeklyMealExportService = weeklyMealExportService;
+        this.weeklyMealService = weeklyMealService;
         this.dormMealService = dormMealService;
         this.objectMapper = objectMapper;
         this.applicationContext = applicationContext;
@@ -60,7 +60,7 @@ class WeeklyMealExportRunner implements ApplicationRunner {
         LocalDate startDate = resolveStartDate();
         Path outputPath = resolveOutputPath(startDate);
 
-        WeeklyMealResponse response = weeklyMealExportService.fetchWeeklyMeals(startDate);
+        WeeklyMealResponse response = weeklyMealService.fetchWeeklyMeals(startDate);
         WeeklyMealResponse dormResponse = dormMealService.getThisWeekMeal();
         Path dormOutputPath = resolveDormOutputPath(dormResponse);
 
