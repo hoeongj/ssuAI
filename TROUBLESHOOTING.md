@@ -34,6 +34,24 @@
 
 ---
 
+## 2026-05-14 — LLM 모드 + MCP self-dogfood 실서버 부팅 3중 장애
+
+- 맥락: ADR 0010/0011 머지 후 처음으로 `SSUAI_CONNECTOR_CHAT=llm` + 실제 Gemini key 로 `bootRun`. 단위 테스트는 전부 mock 이라 통과해 왔지만 진짜 서버는 한 번도 부팅을 안 해봤음.
+- 증상: 세 단계로 실패가 이어짐.
+  1. `MistralLlmProvider required a bean of type 'org.springframework.web.client.RestClient$Builder' that could not be found` — 모든 LLM provider 빈이 같은 의존성으로 깨짐.
+  2. `LlmChatService required a bean of type 'com.fasterxml.jackson.databind.ObjectMapper' ... User-defined bean method 'mcpServerObjectMapper'` — MCP server 가 자기 전용 ObjectMapper 를 등록하면서 기본 ObjectMapper 후보를 가려버림.
+  3. `mcpSyncClients ... Client failed to initialize by explicit API call ... TimeoutException: Did not observe any item or terminal signal within 10000ms` — Spring AI MCP client autoconfig 가 컨텍스트 refresh 단계에서 자기 `/sse` 로 연결을 시도하는데, 같은 JVM 의 Tomcat 이 아직 port 8080 에 바인딩 전이라 `ConnectException` → 10초 대기 → 컨텍스트 실패.
+- 원인:
+  1. Spring Boot 4.0.6 의 autoconfig 재편 — `RestClient.Builder` 가 더 이상 `spring-boot-starter-web` 만으로는 기본 등록되지 않음.
+  2. `McpServerObjectMapperAutoConfiguration` 가 별도 ObjectMapper 빈을 등록하면서 Spring 의 후보 해석이 모호해짐. 기본 빈 후보가 없어 LlmChatService 의 생성자가 unresolved.
+  3. self-dogfood 의 본질적 chicken-and-egg — MCP client 빈이 컨텍스트 refresh 중 동기 init 을 하는데, MCP server 가 같은 컨텍스트에서 Tomcat SmartLifecycle 단계에 뜬다. ADR 0010 의 Trade-offs 에서 "추후 process 분리도 가능하게 한다" 라 적었던 우려가 실제로 실현.
+- 해결:
+  1. `LlmProviderConfig` 에 `@Bean @ConditionalOnMissingBean RestClient.Builder` 명시.
+  2. 같은 config 에 `@Bean @Primary ObjectMapper primaryObjectMapper()` 추가.
+  3. `application.yml` 에 `spring.ai.mcp.client.initialized: false` + `spring.ai.mcp.client.toolcallback.enabled: false`. 첫 chat 요청 시점에 `LlmChatService.discoverChatTools()` 가 `client.initialize() + listTools()` 를 직접 호출 (이미 ADR 0011 구현). `LlmChatService` 생성자 파라미터 `List<McpSyncClient>` 에 `@Lazy` 추가하고 `mcpClient()` 헬퍼 도입 — 빈 자체의 첫 사용 시점도 보수적으로 지연.
+- 검증: `gradlew.bat test` 전체 통과 (LlmChatServiceTests / McpSelfDogfoodTests 회귀 없음). 실서버 `bootRun` 8.6s 에 startup 완료. `POST /api/chat` 에 "오늘 학식 뭐야?" 보내면 실제 학식 메뉴 ("오늘 점심은 학생식당에서 모듬순대국밥...") 한국어 응답 정상.
+- 포트폴리오 포인트: (1) 단위 테스트 100% 통과가 "production 부팅 가능" 을 의미하지 않는 전형적 사례. mock 이 가린 의존성 누락이 3중으로 드러남. (2) Self-dogfood architecture 의 본질적 함정 — 같은 JVM 안에서 client 가 server 를 동기 호출하는 패턴은 SmartLifecycle 순서를 거스르면 deadlock. 해결은 init 을 모두 lazy 로 미루는 것 (Spring AI 의 `initialized` flag + `@Lazy` 주입 + 명시적 ADR 0011 listTools cache). (3) Spring Boot 4 / Spring AI 1.1 같은 신버전 조합은 autoconfig diff 가 크다 — Boot 3.x 에서 당연하던 빈 (`RestClient.Builder`) 이 묵묵히 사라질 수 있음. 모든 신버전 의존성 업그레이드에는 "실서버 부팅 1회 + 핵심 path smoke" 를 mock 테스트와 별도로 강제하는 게 옳다.
+
 ## 2026-05-13 — chatbot이 자기 MCP server를 HTTP/SSE로 self-dogfood 하도록 전환
 
 - 맥락: ADR 0009 chat slice 시점의 `LlmChatService`는 같은 JVM 안의 `MealMcpTools/DormMcpTools/CampusMcpTools` 빈을 일반 Java 메서드로 직접 호출했습니다. MCP server는 외부 클라이언트(Claude Desktop, Cursor)만 쓰는 비대칭 상태였고, 챗봇 경로에서 MCP request/response 표면이 검증되지 않았습니다.

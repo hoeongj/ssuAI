@@ -22,6 +22,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import com.ssuai.domain.chat.config.LlmChatProperties;
@@ -70,24 +71,29 @@ public class LlmChatService implements ChatService {
     private final LlmChatProperties properties;
     private final Map<String, LlmProvider> providersByName;
     private final ObjectMapper objectMapper;
-    private final McpSyncClient mcpClient;
     private volatile List<OpenAiChatCompletionRequest.Tool> cachedChatTools;
+
+    private final List<McpSyncClient> mcpClients;
 
     public LlmChatService(
             LlmChatProperties properties,
             List<LlmProvider> providers,
             ObjectMapper objectMapper,
-            List<McpSyncClient> mcpClients
+            @Lazy List<McpSyncClient> mcpClients
     ) {
-        if (mcpClients == null || mcpClients.isEmpty()) {
-            throw new IllegalStateException(
-                    "LLM chat mode requires at least one Spring AI MCP client connection (spring.ai.mcp.client.sse.connections.*).");
-        }
         this.properties = properties;
         this.providersByName = providers.stream()
                 .collect(Collectors.toUnmodifiableMap(LlmProvider::name, Function.identity()));
         this.objectMapper = objectMapper;
-        this.mcpClient = mcpClients.get(0);
+        this.mcpClients = mcpClients;
+    }
+
+    private McpSyncClient mcpClient() {
+        if (mcpClients == null || mcpClients.isEmpty()) {
+            throw new IllegalStateException(
+                    "LLM chat mode requires at least one Spring AI MCP client connection (spring.ai.mcp.client.sse.connections.*).");
+        }
+        return mcpClients.get(0);
     }
 
     @Override
@@ -271,10 +277,11 @@ public class LlmChatService implements ChatService {
 
     private List<OpenAiChatCompletionRequest.Tool> discoverChatTools() {
         try {
-            if (!mcpClient.isInitialized()) {
-                mcpClient.initialize();
+            McpSyncClient client = mcpClient();
+            if (!client.isInitialized()) {
+                client.initialize();
             }
-            McpSchema.ListToolsResult listing = mcpClient.listTools();
+            McpSchema.ListToolsResult listing = client.listTools();
             List<OpenAiChatCompletionRequest.Tool> tools = listing.tools().stream()
                     .filter(Objects::nonNull)
                     .map(this::mapMcpToolToOpenAi)
@@ -342,7 +349,7 @@ public class LlmChatService implements ChatService {
     private String callMcp(String toolName, Map<String, Object> arguments) {
         McpSchema.CallToolResult result;
         try {
-            result = mcpClient.callTool(new McpSchema.CallToolRequest(toolName, arguments));
+            result = mcpClient().callTool(new McpSchema.CallToolRequest(toolName, arguments));
         } catch (RuntimeException exception) {
             log.warn("mcp tool call failed: tool={} error={}", toolName, exception.getClass().getSimpleName());
             return toolError("도구 호출에 실패했습니다.");
