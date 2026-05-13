@@ -50,7 +50,26 @@ triggered by the one-liner above, before touching any code.
 Unless the task says otherwise or explicitly stops before git operations, a
 ready Codex task follows this default chain:
 
+- Pre-task sync:
+  1. `git fetch origin --prune`
+  2. `git switch main && git pull --ff-only origin main`
+  3. `git branch -vv | grep ': gone\]' | awk '{print $1}' | xargs -r git branch -D`
+     deletes only local branches whose upstream disappeared from `origin`; if
+     there are no matches, it is a no-op. If the worktree is dirty or sync
+     cannot fast-forward cleanly, stop and report instead of stashing,
+     resetting, or deleting unrelated work.
+
 `implement → verify → commit → switch -c <branch> → push -u → gh pr create → gh pr checks <PR> 1회`
+
+- Post-PR check:
+  - The next task starts by applying the sync step above, so merged branches and
+    deleted upstream refs get cleaned before new work begins.
+  - If a previous task's PR was merged but GitHub did not auto-close the PR
+    record, confirm with `gh pr view <PR> --json state,mergedAt`. When it is
+    still `OPEN` and the same change is already in `main`, close the stale
+    record with
+    `gh pr close <PR> --comment "Squash-merged into main as <sha>. Closing the PR record."`
+    Do not automate PR merging; the merge decision remains with the user.
 
 Rules for the standard flow:
 
