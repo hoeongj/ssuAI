@@ -6,19 +6,23 @@
 
 [![CI](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml/badge.svg)](https://github.com/hoeongj/ssuAI/actions/workflows/ci.yml)
 
-**Status:** MVP live. 4 read-only REST endpoints, the MCP server, and the
-Next.js dashboard are deployed over public HTTPS. The chatbot slice is in
-review on `feat/chatbot-slice`.
+**Status:** MVP implementation ready; live rollout is pending external
+Oracle Cloud, DuckDNS, and Vercel setup. 4 read-only REST endpoints, the
+MCP server, Next.js dashboard, and chatbot slice are runnable locally.
 
-Live endpoints:
-- **Demo:** <https://ssuai.vercel.app/>
-- **Chat:** <https://ssuai.vercel.app/chat>
-- **Backend:** <https://ssumcp.duckdns.org>
-- **MCP SSE:** <https://ssumcp.duckdns.org/sse>
+**Live endpoints (live rollout pending — see
+[`docs/tasks/06-prod-deploy.md`](docs/tasks/06-prod-deploy.md) prereqs):**
+
+- ⏳ **Demo:** <https://ssuai.vercel.app/>
+- ⏳ **Chat:** <https://ssuai.vercel.app/chat>
+- ⏳ **Backend:** <https://ssumcp.duckdns.org>
+- ⏳ **MCP SSE:** <https://ssumcp.duckdns.org/sse>
 
 ---
 
 ## What it does today
+
+<!-- markdownlint-disable MD013 MD060 -->
 
 | Surface | What you can do |
 |---|---|
@@ -26,6 +30,66 @@ Live endpoints:
 | **Web dashboard** | Next.js 16 App Router with 4 cards (today's cafeteria, weekly cafeteria, dorm weekly, facility search). Per-card loading / error / empty states. |
 | **Chatbot** | `/chat` page plus `POST /api/chat`. Default local/test/prod manifest mode is deterministic mock; production can explicitly enable bounded multi-provider LLM fallback for public campus questions only. In LLM mode the chatbot calls the local MCP server over SSE via Spring AI's MCP client — self-dogfooding the protocol on every turn. |
 | **MCP server** | 4 tools (`get_today_meal`, `get_meal_by_date`, `get_dorm_weekly_meal`, `search_campus_facilities`) over SSE. Same Spring Boot process; usable from Claude Desktop, Claude Code, Cursor. See [`docs/mcp-tools.md`](docs/mcp-tools.md). |
+
+<!-- markdownlint-enable MD013 MD060 -->
+
+### Run the chatbot locally
+
+Prerequisites: JDK 21, Node 20, pnpm 9, and at least one Gemini API key.
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+# Fill SSUAI_GEMINI_API_KEY=... in backend/.env.
+```
+
+```bash
+cp backend/.env.example backend/.env
+# Fill SSUAI_GEMINI_API_KEY=... in backend/.env.
+```
+
+```powershell
+Push-Location backend
+Get-Content .env | Where-Object { $_ -and $_ -notmatch '^\s*#' } |
+    ForEach-Object {
+        $name, $value = $_ -split '=', 2
+        [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+    }
+$env:SSUAI_CONNECTOR_CHAT = "llm"
+$env:SSUAI_CONNECTOR_MEAL = "real"
+$env:SSUAI_CONNECTOR_DORM_MEAL = "real"
+.\gradlew.bat bootRun
+```
+
+```bash
+cd backend
+set -a
+. ./.env
+set +a
+SSUAI_CONNECTOR_CHAT=llm \
+SSUAI_CONNECTOR_MEAL=real \
+SSUAI_CONNECTOR_DORM_MEAL=real \
+./gradlew bootRun
+```
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env.local
+pnpm --dir frontend install
+pnpm --dir frontend dev
+```
+
+```bash
+cp frontend/.env.example frontend/.env.local
+pnpm --dir frontend install
+pnpm --dir frontend dev
+```
+
+Verify the backend, or open <http://localhost:3000/chat>.
+
+```bash
+curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"오늘 학식 뭐야?\"}"
+```
 
 No login, no PII, no personalization yet — the MVP is intentionally
 read-only and public-data-only. See [`docs/product.md`](docs/product.md)
@@ -156,6 +220,8 @@ curl -X POST http://localhost:8080/api/chat \
 
 ## Project status
 
+<!-- markdownlint-disable MD013 MD060 -->
+
 | Task | What | Status |
 |---|---|---|
 | 01 | Backend skeleton | ✅ done |
@@ -163,13 +229,15 @@ curl -X POST http://localhost:8080/api/chat \
 | 03 | Real cafeteria connector | ✅ done |
 | 04 | Dorm meal connector | ✅ done |
 | 05 | Frontend MVP (Next.js dashboard, 4 cards) | done |
-| 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | live |
+| 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | deploy artifacts ready (live rollout pending — external Oracle Cloud / DuckDNS / Vercel setup) |
 | 07 | ArgoCD GitOps + Helm chart refactor | done |
 | 08 | OpenAPI / Swagger UI | done |
 | 09 | Secret scanning | done |
 | 10 | Frontend test infrastructure | done |
 | 11 | Dependabot | done |
 | chat | Chatbot slice (POST /api/chat + /chat page) | done |
+
+<!-- markdownlint-enable MD013 MD060 -->
 
 Specs live in [`docs/tasks/`](docs/tasks/). Per-task narrative is
 appended to [`docs/dev-log.md`](docs/dev-log.md) and load-bearing
