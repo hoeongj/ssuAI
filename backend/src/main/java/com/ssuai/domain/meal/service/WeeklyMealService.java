@@ -14,14 +14,14 @@ import com.ssuai.domain.meal.dto.MealResponse;
 import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 
 @Service
-public class WeeklyMealExportService {
+public class WeeklyMealService {
 
     private static final int DAYS_PER_WEEK = 7;
 
     private final MealService mealService;
     private final Executor weeklyMealFanOutExecutor;
 
-    public WeeklyMealExportService(
+    public WeeklyMealService(
             MealService mealService,
             @Qualifier("weeklyMealFanOutExecutor") Executor weeklyMealFanOutExecutor
     ) {

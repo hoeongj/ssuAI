@@ -28,11 +28,11 @@ import com.ssuai.domain.meal.dto.MealType;
 import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 import com.ssuai.global.exception.ConnectorUnavailableException;
 
-class WeeklyMealExportServiceTests {
+class WeeklyMealServiceTests {
 
     private final MealConnector mealConnector = mock(MealConnector.class);
     private final MealService mealService = new MealService(mealConnector, Runnable::run);
-    private final WeeklyMealExportService exportService = new WeeklyMealExportService(mealService, Runnable::run);
+    private final WeeklyMealService weeklyMealService = new WeeklyMealService(mealService, Runnable::run);
 
     @Test
     void fetchWeeklyMealsAggregatesAcrossSevenDaysWithFanOutFailures() {
@@ -53,7 +53,7 @@ class WeeklyMealExportServiceTests {
                                     List.of("쌀밥"))));
                 });
 
-        WeeklyMealResponse response = exportService.fetchWeeklyMeals(startDate);
+        WeeklyMealResponse response = weeklyMealService.fetchWeeklyMeals(startDate);
 
         assertThat(response.startDate()).isEqualTo(LocalDate.of(2026, 5, 3));
         assertThat(response.endDate()).isEqualTo(LocalDate.of(2026, 5, 9));
@@ -85,7 +85,7 @@ class WeeklyMealExportServiceTests {
                         assertThat(releaseFetches.await(1, TimeUnit.SECONDS)).isTrue();
                         return new MealResponse(date, List.of(), List.of());
                     });
-            WeeklyMealExportService service = new WeeklyMealExportService(slowMealService, weeklyExecutor);
+            WeeklyMealService service = new WeeklyMealService(slowMealService, weeklyExecutor);
 
             CompletableFuture<WeeklyMealResponse> responseFuture = CompletableFuture.supplyAsync(
                     () -> service.fetchWeeklyMeals(startDate));
@@ -112,7 +112,7 @@ class WeeklyMealExportServiceTests {
         ConnectorUnavailableException failure = new ConnectorUnavailableException(new RuntimeException("503"));
         when(failingMealService.getMeal(any(LocalDate.class))).thenThrow(failure);
 
-        WeeklyMealExportService service = new WeeklyMealExportService(failingMealService, Runnable::run);
+        WeeklyMealService service = new WeeklyMealService(failingMealService, Runnable::run);
 
         assertThatThrownBy(() -> service.fetchWeeklyMeals(startDate))
                 .isSameAs(failure);
