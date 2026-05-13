@@ -34,6 +34,15 @@
 
 ---
 
+## 2026-05-13 — chat CORS preflight가 POST를 막아 chatbot이 브라우저에서 실패
+
+- 맥락: chat slice는 `POST /api/chat`으로 동작하지만, CORS 설정은 `/api/**` preflight에서 `GET`, `OPTIONS`만 허용하고 있었습니다.
+- 증상: Vercel frontend(`https://ssuai.vercel.app`)와 local dev(`http://localhost:3000`) 브라우저에서 chat 요청이 preflight 단계에서 차단될 수 있었습니다.
+- 원인: dev/prod CORS allowlist의 method 목록에 `POST`가 빠져 있었습니다. 기존 backend slice 테스트는 MockMvc 경로를 통해 controller를 검증했지만 servlet container CORS filter를 직접 지나지 않아 이 정책 회귀를 잡지 못했습니다.
+- 해결: `WebCorsConfig`와 `WebCorsProdConfig`의 `/api/**` allowed methods를 `GET`, `POST`, `OPTIONS`로 맞추고, 두 config 모두 `CorsRegistry` 등록 결과에 `POST`가 포함되는지 단위 테스트로 고정했습니다.
+- 검증: `gradlew.bat test --tests "*WebCors*"`와 `gradlew.bat test`로 확인했습니다.
+- 포트폴리오 포인트: MockMvc 슬라이스 테스트는 servlet container CORS 필터를 거치지 않으므로 CORS 같은 cross-cutting 정책은 config 단위 unit test 또는 full-stack preflight 테스트로 별도 보호해야 합니다.
+
 ## 2026-05-12 — chatbot tool-call fan-out과 출력 토큰 budget 보강
 
 - 맥락: 코드/파일 전체 정리 중 LLM 호출 비용과 latency가 커질 수 있는 경로를 점검했습니다.

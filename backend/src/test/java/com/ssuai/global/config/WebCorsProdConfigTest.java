@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 
 class WebCorsProdConfigTest {
 
@@ -14,6 +16,17 @@ class WebCorsProdConfigTest {
                 .withUserConfiguration(WebCorsProdConfig.class)
                 .withPropertyValues("ssuai.frontend.origin=https://test.example.com")
                 .run(ctx -> assertThat(ctx).hasSingleBean(WebCorsProdConfig.class));
+    }
+
+    @Test
+    void apiCorsMappingAllowsGetPostAndOptions() {
+        InspectableCorsRegistry registry = new InspectableCorsRegistry();
+
+        new WebCorsProdConfig("https://test.example.com").addCorsMappings(registry);
+
+        CorsConfiguration config = registry.corsConfiguration("/api/**");
+        assertThat(config).isNotNull();
+        assertThat(config.getAllowedMethods()).contains("GET", "POST", "OPTIONS");
     }
 
     @Test
@@ -55,5 +68,12 @@ class WebCorsProdConfigTest {
                 .withUserConfiguration(WebCorsProdConfig.class)
                 .withPropertyValues("ssuai.frontend.origin=   ")
                 .run(ctx -> assertThat(ctx).hasFailed());
+    }
+
+    private static final class InspectableCorsRegistry extends CorsRegistry {
+
+        private CorsConfiguration corsConfiguration(String pathPattern) {
+            return getCorsConfigurations().get(pathPattern);
+        }
     }
 }
