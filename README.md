@@ -50,7 +50,7 @@ dev). Full design docs:
 - [`docs/security.md`](docs/security.md) — secrets, logging, CORS,
   outbound HTML treatment, dependency policy.
 - [`docs/adr/`](docs/adr/) — every load-bearing decision (currently
-  ADRs 0001-0010).
+  ADRs 0001-0011).
 
 ---
 

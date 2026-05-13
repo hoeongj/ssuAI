@@ -5,6 +5,10 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-13
 
+- 2026-05-13: Chat tool 목록을 MCP server 의 `listTools()` 로 동적 발견. 정적
+  `CHAT_TOOLS` 와 `createTools()` 헬퍼 제거. `McpSchema.Tool` → OpenAI tool
+  매핑 + JVM-수명 cache. MCP `@Tool` annotation 이 single source of truth.
+  ADR 0011.
 - 2026-05-13: `McpSelfDogfoodTests` 추가. `@SpringBootTest(RANDOM_PORT)` 환경에서
   Spring AI MCP client 를 수동 build 해 자기 `/sse` 에 `listTools` + `callTool`
   라운드트립 검증. ADR 0010 의 "MCP server 가 자체 프로세스에서도 호출 가능"
