@@ -3,6 +3,7 @@ package com.ssuai.domain.chat.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -13,6 +14,10 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,15 +33,6 @@ import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
 import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
 import com.ssuai.domain.chat.service.llm.LlmProvider;
 import com.ssuai.domain.chat.service.llm.LlmProviderException;
-import com.ssuai.domain.campus.dto.CampusFacilityListResponse;
-import com.ssuai.domain.campus.dto.CampusFacilityResponse;
-import com.ssuai.domain.mcp.tool.CampusMcpTools;
-import com.ssuai.domain.mcp.tool.DormMcpTools;
-import com.ssuai.domain.mcp.tool.MealMcpTools;
-import com.ssuai.domain.meal.dto.MealClosure;
-import com.ssuai.domain.meal.dto.MealItem;
-import com.ssuai.domain.meal.dto.MealResponse;
-import com.ssuai.domain.meal.dto.WeeklyMealResponse;
 import com.ssuai.global.exception.ChatUnavailableException;
 
 @Service
@@ -67,30 +63,30 @@ public class LlmChatService implements ChatService {
             "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설만 도와줄 수 있어요.";
 
     private static final int MAX_CHAT_TOOL_FACILITY_RESULTS = 6;
+    private static final int MAX_TOOL_CONTENT_BYTES = 8 * 1024;
+    private static final String TOOL_TRUNCATION_MARKER = "...[truncated]";
     private static final List<OpenAiChatCompletionRequest.Tool> CHAT_TOOLS = createTools();
 
     private final LlmChatProperties properties;
     private final Map<String, LlmProvider> providersByName;
     private final ObjectMapper objectMapper;
-    private final MealMcpTools mealMcpTools;
-    private final DormMcpTools dormMcpTools;
-    private final CampusMcpTools campusMcpTools;
+    private final McpSyncClient mcpClient;
 
     public LlmChatService(
             LlmChatProperties properties,
             List<LlmProvider> providers,
             ObjectMapper objectMapper,
-            MealMcpTools mealMcpTools,
-            DormMcpTools dormMcpTools,
-            CampusMcpTools campusMcpTools
+            List<McpSyncClient> mcpClients
     ) {
+        if (mcpClients == null || mcpClients.isEmpty()) {
+            throw new IllegalStateException(
+                    "LLM chat mode requires at least one Spring AI MCP client connection (spring.ai.mcp.client.sse.connections.*).");
+        }
         this.properties = properties;
         this.providersByName = providers.stream()
                 .collect(Collectors.toUnmodifiableMap(LlmProvider::name, Function.identity()));
         this.objectMapper = objectMapper;
-        this.mealMcpTools = mealMcpTools;
-        this.dormMcpTools = dormMcpTools;
-        this.campusMcpTools = campusMcpTools;
+        this.mcpClient = mcpClients.get(0);
     }
 
     @Override
@@ -323,21 +319,172 @@ public class LlmChatService implements ChatService {
         String toolName = toolCall.function() == null ? "" : toolCall.function().name();
         try {
             return switch (toolName) {
-                case "get_today_meal" -> toolResult(mealMcpTools.getTodayMeal());
-                case "get_meal_by_date" -> toolResult(mealMcpTools.getMealByDate(requiredArgument(toolCall, "date")));
-                case "get_dorm_weekly_meal" -> toolResult(dormMcpTools.getDormWeeklyMeal());
+                case "get_today_meal" -> callMcp(toolName, Map.of());
+                case "get_meal_by_date" -> callMcp(toolName,
+                        Map.of("date", requiredArgument(toolCall, "date")));
+                case "get_dorm_weekly_meal" -> callMcp(toolName, Map.of());
                 case "search_campus_facilities" -> {
                     String query = optionalArgument(toolCall, "query").trim();
                     if (query.isBlank()) {
                         yield toolError("시설 검색은 검색어가 필요합니다. 예: 카페, 복사, 편의점, 학생식당.");
                     }
-                    yield toolResult(campusMcpTools.searchCampusFacilities(query));
+                    yield callMcp(toolName, Map.of("query", query));
                 }
                 default -> toolError("지원하지 않는 도구입니다: " + toolName);
             };
         } catch (IllegalArgumentException | IllegalStateException exception) {
             return toolError(exception.getMessage());
         }
+    }
+
+    private String callMcp(String toolName, Map<String, Object> arguments) {
+        McpSchema.CallToolResult result;
+        try {
+            result = mcpClient.callTool(new McpSchema.CallToolRequest(toolName, arguments));
+        } catch (RuntimeException exception) {
+            log.warn("mcp tool call failed: tool={} error={}", toolName, exception.getClass().getSimpleName());
+            return toolError("도구 호출에 실패했습니다.");
+        }
+
+        String text = extractText(result.content());
+        if (Boolean.TRUE.equals(result.isError())) {
+            return toolError(text.isBlank() ? "도구 실행에 실패했습니다." : text);
+        }
+        if (text.isBlank()) {
+            return toolError("도구 응답이 비어 있습니다.");
+        }
+        return compactAndCap(toolName, text);
+    }
+
+    private static String extractText(List<McpSchema.Content> contents) {
+        if (contents == null || contents.isEmpty()) {
+            return "";
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (McpSchema.Content content : contents) {
+            if (content instanceof McpSchema.TextContent textContent) {
+                buffer.append(textContent.text());
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String compactAndCap(String toolName, String rawJsonText) {
+        try {
+            JsonNode tree = objectMapper.readTree(rawJsonText);
+            JsonNode compacted = switch (toolName) {
+                case "get_today_meal", "get_meal_by_date" -> compactMealNode(tree);
+                case "get_dorm_weekly_meal" -> compactWeeklyMealNode(tree);
+                case "search_campus_facilities" -> compactFacilityListNode(tree);
+                default -> tree;
+            };
+            return capLength(objectMapper.writeValueAsString(compacted));
+        } catch (JsonProcessingException exception) {
+            return capLength(rawJsonText);
+        }
+    }
+
+    private static String capLength(String value) {
+        if (value.length() <= MAX_TOOL_CONTENT_BYTES) {
+            return value;
+        }
+        return value.substring(0, MAX_TOOL_CONTENT_BYTES) + TOOL_TRUNCATION_MARKER;
+    }
+
+    private ObjectNode compactMealNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "date");
+        compact.set("meals", filterArray(node.get("meals"), this::compactMealItemNode));
+        JsonNode closures = node.get("closures");
+        if (closures != null && closures.isArray() && !closures.isEmpty()) {
+            compact.set("closures", filterArray(closures, this::compactClosureNode));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactWeeklyMealNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "startDate");
+        copyTextIfPresent(node, compact, "endDate");
+        compact.set("days", filterArray(node.get("days"), this::compactMealNode));
+        return compact;
+    }
+
+    private ObjectNode compactFacilityListNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        JsonNode facilities = node.get("facilities");
+        int total = facilities != null && facilities.isArray() ? facilities.size() : 0;
+        compact.put("resultCount", total);
+        compact.put("truncated", total > MAX_CHAT_TOOL_FACILITY_RESULTS);
+        ArrayNode trimmed = objectMapper.createArrayNode();
+        if (facilities != null && facilities.isArray()) {
+            int limit = Math.min(total, MAX_CHAT_TOOL_FACILITY_RESULTS);
+            for (int index = 0; index < limit; index++) {
+                trimmed.add(compactFacilityNode(facilities.get(index)));
+            }
+        }
+        compact.set("facilities", trimmed);
+        return compact;
+    }
+
+    private ObjectNode compactMealItemNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "restaurant");
+        copyTextIfPresent(node, compact, "type");
+        copyTextIfPresent(node, compact, "corner");
+        if (node.hasNonNull("menu")) {
+            compact.set("menu", node.get("menu"));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactClosureNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "restaurant");
+        copyTextIfPresent(node, compact, "reason");
+        return compact;
+    }
+
+    private ObjectNode compactFacilityNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "name");
+        if (node.hasNonNull("categoryLabel")) {
+            compact.put("category", node.get("categoryLabel").asText());
+        } else if (node.hasNonNull("category")) {
+            compact.put("category", node.get("category").asText());
+        }
+        copyTextIfPresent(node, compact, "location");
+        copyTextIfPresent(node, compact, "phone");
+        copyTextIfPresent(node, compact, "extension");
+        copyNonEmptyArray(node, compact, "weekdayHours");
+        copyNonEmptyArray(node, compact, "weekendHours");
+        copyNonEmptyArray(node, compact, "notes");
+        return compact;
+    }
+
+    private static void copyTextIfPresent(JsonNode source, ObjectNode target, String field) {
+        JsonNode value = source.get(field);
+        if (value != null && !value.isNull() && !value.asText("").isBlank()) {
+            target.put(field, value.asText());
+        }
+    }
+
+    private static void copyNonEmptyArray(JsonNode source, ObjectNode target, String field) {
+        JsonNode value = source.get(field);
+        if (value != null && value.isArray() && !value.isEmpty()) {
+            target.set(field, value);
+        }
+    }
+
+    private ArrayNode filterArray(JsonNode source, Function<JsonNode, ObjectNode> mapper) {
+        ArrayNode array = objectMapper.createArrayNode();
+        if (source == null || !source.isArray()) {
+            return array;
+        }
+        for (Iterator<JsonNode> iterator = source.elements(); iterator.hasNext(); ) {
+            array.add(mapper.apply(iterator.next()));
+        }
+        return array;
     }
 
     private String requiredArgument(OpenAiToolCall toolCall, String fieldName) {
@@ -364,104 +511,6 @@ public class LlmChatService implements ChatService {
             return objectMapper.readTree(rawArguments);
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("도구 인자를 JSON으로 해석하지 못했습니다.", exception);
-        }
-    }
-
-    private String toolResult(Object value) {
-        try {
-            return objectMapper.writeValueAsString(compactToolValue(value));
-        } catch (JsonProcessingException exception) {
-            throw new ChatUnavailableException(exception);
-        }
-    }
-
-    private static Object compactToolValue(Object value) {
-        if (value instanceof WeeklyMealResponse response) {
-            return compactWeeklyMealResponse(response);
-        }
-        if (value instanceof MealResponse response) {
-            return compactMealResponse(response);
-        }
-        if (value instanceof CampusFacilityListResponse response) {
-            return compactFacilityListResponse(response);
-        }
-        return value;
-    }
-
-    private static Map<String, Object> compactWeeklyMealResponse(WeeklyMealResponse response) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        compact.put("startDate", response.startDate());
-        compact.put("endDate", response.endDate());
-        compact.put("days", response.days().stream()
-                .map(LlmChatService::compactMealResponse)
-                .toList());
-        return compact;
-    }
-
-    private static Map<String, Object> compactMealResponse(MealResponse response) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        compact.put("date", response.date());
-        compact.put("meals", response.meals().stream()
-                .map(LlmChatService::compactMealItem)
-                .toList());
-        if (!response.closures().isEmpty()) {
-            compact.put("closures", response.closures().stream()
-                    .map(LlmChatService::compactMealClosure)
-                    .toList());
-        }
-        return compact;
-    }
-
-    private static Map<String, Object> compactMealItem(MealItem item) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        compact.put("restaurant", item.restaurant());
-        compact.put("type", item.type());
-        putIfPresent(compact, "corner", item.corner());
-        compact.put("menu", item.menu());
-        return compact;
-    }
-
-    private static Map<String, Object> compactMealClosure(MealClosure closure) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        compact.put("restaurant", closure.restaurant());
-        compact.put("reason", closure.reason());
-        return compact;
-    }
-
-    private static Map<String, Object> compactFacilityListResponse(CampusFacilityListResponse response) {
-        List<CampusFacilityResponse> facilities = response.facilities();
-        Map<String, Object> compact = new LinkedHashMap<>();
-        compact.put("resultCount", facilities.size());
-        compact.put("truncated", facilities.size() > MAX_CHAT_TOOL_FACILITY_RESULTS);
-        compact.put("facilities", facilities.stream()
-                .limit(MAX_CHAT_TOOL_FACILITY_RESULTS)
-                .map(LlmChatService::compactFacility)
-                .toList());
-        return compact;
-    }
-
-    private static Map<String, Object> compactFacility(CampusFacilityResponse facility) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        compact.put("name", facility.name());
-        compact.put("category", facility.categoryLabel());
-        compact.put("location", facility.location());
-        putIfPresent(compact, "phone", facility.phone());
-        putIfPresent(compact, "extension", facility.extension());
-        putIfNotEmpty(compact, "weekdayHours", facility.weekdayHours());
-        putIfNotEmpty(compact, "weekendHours", facility.weekendHours());
-        putIfNotEmpty(compact, "notes", facility.notes());
-        return compact;
-    }
-
-    private static void putIfPresent(Map<String, Object> target, String key, String value) {
-        if (value != null && !value.isBlank()) {
-            target.put(key, value);
-        }
-    }
-
-    private static void putIfNotEmpty(Map<String, Object> target, String key, List<String> value) {
-        if (value != null && !value.isEmpty()) {
-            target.put(key, value);
         }
     }
 

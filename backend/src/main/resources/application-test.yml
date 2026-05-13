@@ -6,6 +6,12 @@ logging:
     root: WARN
     com.ssuai: DEBUG
 
+spring:
+  ai:
+    mcp:
+      client:
+        enabled: false
+
 ssuai:
   connector:
     chat: mock

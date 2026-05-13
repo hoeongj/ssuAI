@@ -9,6 +9,17 @@ spring:
         name: ssuai-mcp
         version: 0.0.1
         type: SYNC
+      client:
+        enabled: ${SSUAI_MCP_CLIENT_ENABLED:true}
+        name: ssuai-self-mcp-client
+        version: 0.0.1
+        type: SYNC
+        request-timeout: 10s
+        sse:
+          connections:
+            self:
+              url: ${SSUAI_MCP_CLIENT_BASE_URL:http://localhost:8080}
+              sse-endpoint: /sse
 
 management:
   endpoints:

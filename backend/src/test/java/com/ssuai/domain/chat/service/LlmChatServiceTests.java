@@ -1,7 +1,12 @@
 package com.ssuai.domain.chat.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -11,6 +16,8 @@ import java.util.List;
 import java.util.Queue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.Test;
 
 import com.ssuai.domain.chat.config.LlmChatProperties;
@@ -23,18 +30,27 @@ import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
 import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
 import com.ssuai.domain.chat.service.llm.LlmProvider;
 import com.ssuai.domain.chat.service.llm.LlmProviderException;
-import com.ssuai.domain.campus.dto.CampusFacilityCategory;
-import com.ssuai.domain.campus.dto.CampusFacilityListResponse;
-import com.ssuai.domain.campus.dto.CampusFacilityResponse;
-import com.ssuai.domain.mcp.tool.CampusMcpTools;
-import com.ssuai.domain.mcp.tool.DormMcpTools;
-import com.ssuai.domain.mcp.tool.MealMcpTools;
 
 class LlmChatServiceTests {
 
-    private final MealMcpTools mealMcpTools = mock(MealMcpTools.class);
-    private final DormMcpTools dormMcpTools = mock(DormMcpTools.class);
-    private final CampusMcpTools campusMcpTools = mock(CampusMcpTools.class);
+    private static final String FACILITY_JSON_LIBRARY_CAFE = """
+            {"facilities":[{
+                "id":"library-soongsil-maru",
+                "name":"도서관 커피점",
+                "category":"CAFE",
+                "categoryLabel":"카페",
+                "location":"도서관 6층",
+                "fax":null,
+                "weekdayHours":["11:00~17:30"],
+                "weekendHours":["휴무"],
+                "notes":["공개 운영시간만 제공"],
+                "aliases":["숭실마루","도서관 카페"]
+            }]}
+            """;
+
+    private static final String FACILITY_JSON_EMPTY = "{\"facilities\":[]}";
+
+    private final McpSyncClient mcpClient = mock(McpSyncClient.class);
 
     @Test
     void fallsBackAcrossProvidersWhenFirstProviderRateLimitIsExceeded() {
@@ -153,21 +169,8 @@ class LlmChatServiceTests {
 
     @Test
     void facilityToolResultIsCompactedBeforeFinalCompletion() {
-        when(campusMcpTools.searchCampusFacilities("카페"))
-                .thenReturn(new CampusFacilityListResponse(List.of(new CampusFacilityResponse(
-                        "library-soongsil-maru",
-                        "도서관 커피점",
-                        CampusFacilityCategory.CAFE,
-                        "카페",
-                        "도서관 6층",
-                        null,
-                        null,
-                        null,
-                        List.of("11:00~17:30"),
-                        List.of("휴무"),
-                        List.of("공개 운영시간만 제공"),
-                        List.of("숭실마루", "도서관 카페")
-                ))));
+        when(mcpClient.callTool(argThat(named("search_campus_facilities"))))
+                .thenReturn(toolTextResult(FACILITY_JSON_LIBRARY_CAFE));
         FakeProvider provider = new FakeProvider("gemini")
                 .toolCall("gemini-model", new OpenAiToolCall(
                         "call-1",
@@ -181,6 +184,10 @@ class LlmChatServiceTests {
 
         assertThat(response.reply()).isEqualTo("도서관 커피점은 도서관 6층에 있어요.");
         assertThat(provider.callCount()).isEqualTo(2);
+        verify(mcpClient, times(1))
+                .callTool(argThat(request ->
+                        "search_campus_facilities".equals(request.name())
+                                && "카페".equals(request.arguments().get("query"))));
         String toolContent = provider.request(1).messages().stream()
                 .filter(message -> "tool".equals(message.role()))
                 .findFirst()
@@ -191,11 +198,11 @@ class LlmChatServiceTests {
                 .contains("\"name\":\"도서관 커피점\"")
                 .doesNotContain("aliases")
                 .doesNotContain("fax")
-                .doesNotContain("id");
+                .doesNotContain("\"id\":");
     }
 
     @Test
-    void facilityToolRequiresQueryBeforeCallingService() {
+    void facilityToolRequiresQueryBeforeCallingMcp() {
         FakeProvider provider = new FakeProvider("gemini")
                 .toolCall("gemini-model", new OpenAiToolCall(
                         "call-1",
@@ -208,7 +215,7 @@ class LlmChatServiceTests {
         ChatResponse response = chatService.reply("c-test", "캠퍼스 시설 알려줘");
 
         assertThat(response.reply()).isEqualTo("시설 종류를 한 단어로 물어봐 주세요.");
-        verifyNoInteractions(campusMcpTools);
+        verifyNoInteractions(mcpClient);
         String toolContent = provider.request(1).messages().stream()
                 .filter(message -> "tool".equals(message.role()))
                 .findFirst()
@@ -219,8 +226,8 @@ class LlmChatServiceTests {
 
     @Test
     void limitsExecutedToolCallsBeforeFinalCompletion() {
-        when(campusMcpTools.searchCampusFacilities("카페"))
-                .thenReturn(new CampusFacilityListResponse(List.of()));
+        when(mcpClient.callTool(argThat(named("search_campus_facilities"))))
+                .thenReturn(toolTextResult(FACILITY_JSON_EMPTY));
         FakeProvider provider = new FakeProvider("gemini")
                 .toolCalls("gemini-model", List.of(
                         new OpenAiToolCall(
@@ -242,7 +249,9 @@ class LlmChatServiceTests {
         ChatResponse response = chatService.reply("c-test", "카페랑 기숙사 식단 알려줘");
 
         assertThat(response.reply()).isEqualTo("카페 검색 결과만 먼저 확인했어요.");
-        verifyNoInteractions(dormMcpTools);
+        verify(mcpClient, never())
+                .callTool(argThat(named("get_dorm_weekly_meal")));
+        verify(mcpClient, times(1)).callTool(any());
         List<String> toolContents = provider.request(1).messages().stream()
                 .filter(message -> "tool".equals(message.role()))
                 .map(OpenAiChatCompletionRequest.Message::content)
@@ -262,7 +271,7 @@ class LlmChatServiceTests {
 
         assertThat(response.reply()).contains("아직은 로그인 연동이 필요한 학사 정보");
         assertThat(gemini.callCount()).isZero();
-        verifyNoInteractions(mealMcpTools, dormMcpTools, campusMcpTools);
+        verifyNoInteractions(mcpClient);
     }
 
     @Test
@@ -275,7 +284,18 @@ class LlmChatServiceTests {
 
         assertThat(response.reply()).contains("비밀번호");
         assertThat(gemini.callCount()).isZero();
-        verifyNoInteractions(mealMcpTools, dormMcpTools, campusMcpTools);
+        verifyNoInteractions(mcpClient);
+    }
+
+    private static org.mockito.ArgumentMatcher<McpSchema.CallToolRequest> named(String toolName) {
+        return request -> request != null && toolName.equals(request.name());
+    }
+
+    private static McpSchema.CallToolResult toolTextResult(String text) {
+        return new McpSchema.CallToolResult(
+                List.<McpSchema.Content>of(new McpSchema.TextContent(text)),
+                Boolean.FALSE
+        );
     }
 
     private LlmChatService chatService(List<LlmProvider> providers, List<String> providerOrder) {
@@ -312,9 +332,7 @@ class LlmChatServiceTests {
                 properties,
                 providers,
                 new ObjectMapper(),
-                mealMcpTools,
-                dormMcpTools,
-                campusMcpTools
+                List.of(mcpClient)
         );
     }
 
