@@ -164,12 +164,12 @@ curl -X POST http://localhost:8080/api/chat \
 | 04 | Dorm meal connector | ✅ done |
 | 05 | Frontend MVP (Next.js dashboard, 4 cards) | done |
 | 06 | Production deploy artifacts (k3s + Vercel + cert-manager) | live |
-| 07 | ArgoCD GitOps + Helm chart refactor | spec merged; implementation next |
+| 07 | ArgoCD GitOps + Helm chart refactor | done |
 | 08 | OpenAPI / Swagger UI | done |
 | 09 | Secret scanning | done |
 | 10 | Frontend test infrastructure | done |
 | 11 | Dependabot | done |
-| next | Chatbot slice | in review on `feat/chatbot-slice` |
+| chat | Chatbot slice (POST /api/chat + /chat page) | done |
 
 Specs live in [`docs/tasks/`](docs/tasks/). Per-task narrative is
 appended to [`docs/dev-log.md`](docs/dev-log.md) and load-bearing
@@ -229,5 +229,4 @@ documented because they matter for how the codebase reads:
 
 ## License
 
-TBD — for now, all rights reserved. License will be added before any
-public deploy that links external contributors in.
+MIT — see LICENSE
