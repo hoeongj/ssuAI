@@ -276,8 +276,15 @@ error can be looked up in logs.
 
 ## 7. Caching strategy
 
-Redis is the cache. The cache-aside pattern lives in the **Service layer**
-(not the Connector, not the Controller).
+The cache-aside pattern lives in the **Service layer** (not the
+Connector, not the Controller). The table below describes the
+*target shape*; the current MVP implements only the cafeteria entry —
+see "Current implementation" below.
+
+Redis is the eventual store; the MVP uses an in-memory `ConcurrentMap`
+(`WeeklyMealCache`) as a stepping stone since the only cached data so
+far is the cafeteria menu and it refreshes weekly. Moving to Redis is a
+swap at the cache-aside service boundary, not a layer rewrite.
 
 | Data                      | Key                                     | TTL                  | Notes                                                    |
 |---------------------------|-----------------------------------------|----------------------|----------------------------------------------------------|
@@ -293,6 +300,23 @@ Cache misses fall through to the Connector. Connector failures while a stale
 cache value exists are an explicit Service decision — for the MVP, prefer
 returning a 5xx and let the client retry rather than serving stale data
 silently. Reconsider per-feature when real data arrives.
+
+### Current implementation — `WeeklyMealCache`
+
+The cafeteria menu changes once per week. Rather than scrape
+`soongguri.com` on every chat turn or REST request, `WeeklyMealCache`
+preloads the data:
+
+- `@PostConstruct` warms the cache for the current week on application
+  startup (all 6 restaurants × 7 days = 42 entries).
+- `@Scheduled(cron = "0 0 6 ? * MON", zone = "Asia/Seoul")` refreshes
+  the cache every Monday at 06:00 KST.
+- `MealService.getMealForRestaurant(date, restaurant)` is a cache-aside
+  lookup with connector fallback for cache misses (e.g. dates outside
+  the current week).
+
+This is the only cache active in the MVP. Library / LMS rows in the
+table above stay aspirational until those domains land.
 
 ---
 

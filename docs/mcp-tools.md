@@ -12,10 +12,12 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 
 | tool name | 설명 | 인자 | 응답 DTO |
 | --- | --- | --- | --- |
-| `get_today_meal` | 오늘 숭실대학교 캠퍼스 식당 메뉴를 조회한다. 코너별 메뉴와 휴무 정보를 함께 반환한다. | 없음 | `MealResponse` |
-| `get_meal_by_date` | 지정한 날짜의 숭실대학교 캠퍼스 식당 메뉴를 조회한다. | `date`: `yyyy-MM-dd`, 예: `2026-05-07` | `MealResponse` |
+| `get_today_meal` | 오늘 숭실대학교 캠퍼스 식당 메뉴를 조회한다. `restaurant` 를 비우면 전체 식당, 지정하면 해당 식당만 반환한다. | `restaurant` (선택): 학생식당 / 숭실도담식당 / 스낵코너 / 푸드코트 / THE KITCHEN / FACULTY LOUNGE | `MealResponse` |
+| `get_meal_by_date` | 지정한 날짜의 숭실대학교 캠퍼스 식당 메뉴를 조회한다. `restaurant` 동작은 `get_today_meal` 과 동일. | `date`: `yyyy-MM-dd` (예: `2026-05-07`), `restaurant` (선택): 위와 동일 | `MealResponse` |
 | `get_dorm_weekly_meal` | 레지던스홀 기숙사 식당의 이번 주 주간 메뉴를 조회한다. | 없음 | `WeeklyMealResponse` |
 | `search_campus_facilities` | 식당, 카페, 편의점, 서점, 복사/출력 시설 등을 검색한다. `query` 가 비어 있으면 전체 시설을 반환한다. | `query`: 선택 문자열 | `CampusFacilityListResponse` |
+
+학식 데이터는 `WeeklyMealCache` 가 애플리케이션 시작 시점과 매주 월요일 06:00 KST 에 일괄 적재하므로, `get_today_meal` / `get_meal_by_date` 호출은 일반적으로 캐시 히트로 응답한다. 캐시 miss 가 발생하면 그 자리에서 connector 를 호출해 채워 넣는다.
 
 Tool 구현은 `com.ssuai.domain.mcp.tool` 아래의 `MealMcpTools`, `DormMcpTools`, `CampusMcpTools` 에 있다. 각 tool 은 Connector 를 직접 호출하지 않고 도메인 Service 에만 위임한다. REST 와 MCP 가 같은 business logic 을 공유하게 하기 위한 규칙이다.
 
@@ -99,6 +101,12 @@ npx @modelcontextprotocol/inspector
 
 ```json
 {"date":"2026-05-07"}
+```
+
+`get_today_meal` 을 특정 식당으로 좁혀 호출하는 예시:
+
+```json
+{"restaurant":"학생식당"}
 ```
 
 `search_campus_facilities` 호출 예시:
