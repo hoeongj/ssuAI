@@ -328,9 +328,13 @@ public class LlmChatService implements ChatService {
         String toolName = toolCall.function() == null ? "" : toolCall.function().name();
         try {
             return switch (toolName) {
-                case "get_today_meal" -> callMcp(toolName, Map.of());
-                case "get_meal_by_date" -> callMcp(toolName,
-                        Map.of("date", requiredArgument(toolCall, "date")));
+                case "get_today_meal" -> callMcp(toolName, restaurantArgs(toolCall));
+                case "get_meal_by_date" -> {
+                    LinkedHashMap<String, Object> args = new LinkedHashMap<>();
+                    args.put("date", requiredArgument(toolCall, "date"));
+                    args.putAll(restaurantArgs(toolCall));
+                    yield callMcp(toolName, args);
+                }
                 case "get_dorm_weekly_meal" -> callMcp(toolName, Map.of());
                 case "search_campus_facilities" -> {
                     String query = optionalArgument(toolCall, "query").trim();
@@ -344,6 +348,14 @@ public class LlmChatService implements ChatService {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             return toolError(exception.getMessage());
         }
+    }
+
+    private Map<String, Object> restaurantArgs(OpenAiToolCall toolCall) {
+        String restaurant = optionalArgument(toolCall, "restaurant").trim();
+        if (restaurant.isBlank()) {
+            return Map.of();
+        }
+        return Map.of("restaurant", restaurant);
     }
 
     private String callMcp(String toolName, Map<String, Object> arguments) {

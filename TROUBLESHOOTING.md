@@ -34,6 +34,26 @@
 
 ---
 
+## 2026-05-14 — 학식 데이터 매 요청 라이브 스크래핑 → 주간 배치 캐시로 전환
+
+- 맥락: 라이브 챗봇이 동작하기 시작한 직후 데이터 흐름을 점검하다가, 학생이 "오늘 학식 뭐야?" 하고 물어볼 때마다 `RealMealConnector` 가 `soongguri.com` 으로 4~6번의 Jsoup HTTP GET 을 매번 fan-out 하고 있다는 걸 확인. 학식 메뉴는 학교 측에서 주 1회 일괄 갱신되는데 호출은 매번 라이브였음.
+- 증상:
+  - 사용자 메시지 1건당 외부 사이트로 6 HTTP 요청. 챗봇 응답 latency 대부분이 학교 사이트 RTT 에 종속.
+  - 학교 페이지가 일시 장애일 때 챗봇 전체가 동시에 영향. 자체 캐시가 없어 회복도 외부 사이트 회복에 묶임.
+  - 챗봇이 "학생식당" 한 곳만 묻는 질문에도 6개 식당 전체를 스크래핑.
+- 원인: 1차 구현은 ADR/아키텍처 문서의 "Service 계층 캐시-aside" 약속과 다르게 캐시 빈/스케줄러 없이 connector 를 직접 호출하는 형태였음. Redis 도입 비용을 피하다가 캐시 자체를 누락. 식당별 도구도 없어 LLM 이 부분 조회를 못함.
+- 해결:
+  1. `WeeklyMealCache` (`ConcurrentHashMap<(date, restaurant), MealResponse>`) 추가. `@PostConstruct` 시작 시 적재 + `@Scheduled(cron = "0 0 6 ? * MON", zone="Asia/Seoul")` 로 매주 월요일 06:00 KST 갱신. `SsuaiApplication` 에 `@EnableScheduling` 추가.
+  2. `MealService.getMeal(date)` / `getMealForRestaurant(date, restaurant)` 를 캐시-aside 패턴으로 재구성. 캐시 miss 시에만 connector 호출하고 결과를 캐시에 적재.
+  3. MCP 도구 `get_today_meal` / `get_meal_by_date` 에 optional `restaurant` 파라미터 추가. 한국어 별칭 (학생식당/도담/스낵/푸드코트/키친/교직원) 을 enum 으로 매핑. LLM 이 식당을 특정하면 단일 식당만 조회.
+  4. `LlmChatService.executeToolCall` 에서 `restaurant` 인자를 MCP tool call payload 로 forward.
+- 검증:
+  - `MealServiceTests`, `MealMcpToolsTests`, `WeeklyMealCacheTests` 모두 통과.
+  - 라이브 배포 후 `오늘 학식 뭐야?` (전체) vs `학생식당 오늘 메뉴` (단일 식당) 두 케이스 모두 정상 응답 확인.
+- 포트폴리오 포인트: "데이터 갱신 주기와 호출 주기를 맞춰 (주 1회 vs 분당 N건) 외부 의존성 RTT 를 응답 경로에서 제거. DB 없이도 cache-aside 패턴으로 회복력 + 응답 속도 동시에 개선. 식당별 도구 분기로 LLM 호출 페이로드 축소 → 모델 응답 품질도 향상."
+
+---
+
 ## 2026-05-14 — LLM 모드 + MCP self-dogfood 실서버 부팅 3중 장애
 
 - 맥락: ADR 0010/0011 머지 후 처음으로 `SSUAI_CONNECTOR_CHAT=llm` + 실제 Gemini key 로 `bootRun`. 단위 테스트는 전부 mock 이라 통과해 왔지만 진짜 서버는 한 번도 부팅을 안 해봤음.

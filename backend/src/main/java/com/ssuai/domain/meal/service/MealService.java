@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -28,13 +29,16 @@ public class MealService {
 
     private final MealConnector mealConnector;
     private final Executor mealFanOutExecutor;
+    private final WeeklyMealCache cache;
 
     public MealService(
             MealConnector mealConnector,
-            @Qualifier("mealFanOutExecutor") Executor mealFanOutExecutor
+            @Qualifier("mealFanOutExecutor") Executor mealFanOutExecutor,
+            WeeklyMealCache cache
     ) {
         this.mealConnector = mealConnector;
         this.mealFanOutExecutor = mealFanOutExecutor;
+        this.cache = cache;
     }
 
     public MealResponse getTodayMeal() {
@@ -77,9 +81,34 @@ public class MealService {
         return new MealResponse(date, List.copyOf(meals), List.copyOf(closures));
     }
 
+    public MealResponse getMealForRestaurant(LocalDate date, MealRestaurant restaurant) {
+        Optional<MealResponse> cached = cache == null
+                ? Optional.empty()
+                : cache.find(date, restaurant);
+        if (cached.isPresent()) {
+            log.debug("meal cache hit: date={} restaurant={}", date, restaurant.displayName());
+            return cached.get();
+        }
+        MealResponse fresh = mealConnector.fetchMeal(date, restaurant);
+        if (cache != null) {
+            cache.put(date, restaurant, fresh);
+        }
+        return fresh;
+    }
+
     private FetchOutcome fetchMeal(LocalDate date, MealRestaurant restaurant) {
+        Optional<MealResponse> cached = cache == null
+                ? Optional.empty()
+                : cache.find(date, restaurant);
+        if (cached.isPresent()) {
+            return new FetchOutcome(restaurant, cached.get(), null);
+        }
         try {
-            return new FetchOutcome(restaurant, mealConnector.fetchMeal(date, restaurant), null);
+            MealResponse fresh = mealConnector.fetchMeal(date, restaurant);
+            if (cache != null) {
+                cache.put(date, restaurant, fresh);
+            }
+            return new FetchOutcome(restaurant, fresh, null);
         } catch (ConnectorException exception) {
             log.warn("meal fan-out failure: restaurant={} date={} code={}",
                     restaurant.displayName(), date, exception.getErrorCode().name());

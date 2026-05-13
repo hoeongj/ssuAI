@@ -37,7 +37,7 @@ class MealServiceTests {
     private static final LocalDate DATE = LocalDate.of(2026, 5, 6);
 
     private final MealConnector mealConnector = mock(MealConnector.class);
-    private final MealService mealService = new MealService(mealConnector, Runnable::run);
+    private final MealService mealService = new MealService(mealConnector, Runnable::run, null);
 
     @Test
     void getTodayMealFetchesMealForTodayInSeoulTime() {
@@ -117,7 +117,7 @@ class MealServiceTests {
 
         try {
             Future<MealResponse> responseFuture = callerExecutor
-                    .submit(() -> new MealService(slowConnector, executor).getMeal(DATE));
+                    .submit(() -> new MealService(slowConnector, executor, null).getMeal(DATE));
 
             assertThat(firstTwoCallsStarted.await(1, TimeUnit.SECONDS)).isTrue();
             assertThat(maxActiveCalls.get()).isGreaterThan(1);
