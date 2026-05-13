@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -65,12 +66,12 @@ public class LlmChatService implements ChatService {
     private static final int MAX_CHAT_TOOL_FACILITY_RESULTS = 6;
     private static final int MAX_TOOL_CONTENT_BYTES = 8 * 1024;
     private static final String TOOL_TRUNCATION_MARKER = "...[truncated]";
-    private static final List<OpenAiChatCompletionRequest.Tool> CHAT_TOOLS = createTools();
 
     private final LlmChatProperties properties;
     private final Map<String, LlmProvider> providersByName;
     private final ObjectMapper objectMapper;
     private final McpSyncClient mcpClient;
+    private volatile List<OpenAiChatCompletionRequest.Tool> cachedChatTools;
 
     public LlmChatService(
             LlmChatProperties properties,
@@ -130,7 +131,7 @@ public class LlmChatService implements ChatService {
         LlmCompletionResult firstResult = completeAcrossProviders(new LlmCompletionRequest(
                 privacyMode,
                 baseMessages,
-                CHAT_TOOLS,
+                chatTools(),
                 "auto"
         ));
         OpenAiChatCompletionResponse.Message firstMessage = firstResult.message();
@@ -255,64 +256,65 @@ public class LlmChatService implements ChatService {
     ) {
     }
 
-    private static List<OpenAiChatCompletionRequest.Tool> createTools() {
-        return List.of(
-                tool(
-                        "get_today_meal",
-                        "오늘 숭실대학교 학생식당 메뉴를 조회합니다.",
-                        objectParameters(Map.of(), List.of())
-                ),
-                tool(
-                        "get_meal_by_date",
-                        "지정한 날짜의 숭실대학교 학생식당 메뉴를 조회합니다.",
-                        objectParameters(
-                                Map.<String, Object>of("date", property("string", "yyyy-MM-dd 형식의 날짜")),
-                                List.of("date")
-                        )
-                ),
-                tool(
-                        "get_dorm_weekly_meal",
-                        "이번 주 숭실대학교 기숙사 식단을 조회합니다.",
-                        objectParameters(Map.of(), List.of())
-                ),
-                tool(
-                        "search_campus_facilities",
-                        "숭실대학교 캠퍼스 시설을 검색합니다. 식당, 카페, 편의점, 복사/출력 시설 등을 찾습니다.",
-                        objectParameters(
-                                Map.<String, Object>of("query", property("string", "검색어. 비워두지 마세요.")),
-                                List.of("query")
-                        )
+    private List<OpenAiChatCompletionRequest.Tool> chatTools() {
+        List<OpenAiChatCompletionRequest.Tool> snapshot = cachedChatTools;
+        if (snapshot != null) {
+            return snapshot;
+        }
+        synchronized (this) {
+            if (cachedChatTools == null) {
+                cachedChatTools = discoverChatTools();
+            }
+            return cachedChatTools;
+        }
+    }
+
+    private List<OpenAiChatCompletionRequest.Tool> discoverChatTools() {
+        try {
+            if (!mcpClient.isInitialized()) {
+                mcpClient.initialize();
+            }
+            McpSchema.ListToolsResult listing = mcpClient.listTools();
+            List<OpenAiChatCompletionRequest.Tool> tools = listing.tools().stream()
+                    .filter(Objects::nonNull)
+                    .map(this::mapMcpToolToOpenAi)
+                    .toList();
+            log.info("mcp chat tools discovered: count={}", tools.size());
+            return tools;
+        } catch (RuntimeException exception) {
+            log.warn("mcp listTools failed: error={}", exception.getClass().getSimpleName());
+            throw new ChatUnavailableException(exception);
+        }
+    }
+
+    private OpenAiChatCompletionRequest.Tool mapMcpToolToOpenAi(McpSchema.Tool tool) {
+        String description = tool.description() == null ? "" : tool.description();
+        return new OpenAiChatCompletionRequest.Tool(
+                "function",
+                new OpenAiChatCompletionRequest.FunctionDefinition(
+                        tool.name(),
+                        description,
+                        mapInputSchema(tool.inputSchema())
                 )
         );
     }
 
-    private static OpenAiChatCompletionRequest.Tool tool(
-            String name,
-            String description,
-            Map<String, Object> parameters
-    ) {
-        return new OpenAiChatCompletionRequest.Tool(
-                "function",
-                new OpenAiChatCompletionRequest.FunctionDefinition(name, description, parameters)
-        );
-    }
-
-    private static Map<String, Object> objectParameters(Map<String, Object> properties, List<String> required) {
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put("type", "object");
-        schema.put("properties", properties);
-        if (!required.isEmpty()) {
-            schema.put("required", required);
+    private static Map<String, Object> mapInputSchema(McpSchema.JsonSchema schema) {
+        Map<String, Object> mapped = new LinkedHashMap<>();
+        if (schema == null) {
+            mapped.put("type", "object");
+            mapped.put("properties", Map.of());
+            mapped.put("additionalProperties", false);
+            return mapped;
         }
-        schema.put("additionalProperties", false);
-        return schema;
-    }
-
-    private static Map<String, Object> property(String type, String description) {
-        Map<String, Object> property = new LinkedHashMap<>();
-        property.put("type", type);
-        property.put("description", description);
-        return property;
+        mapped.put("type", schema.type() == null ? "object" : schema.type());
+        mapped.put("properties", schema.properties() == null ? Map.of() : schema.properties());
+        if (schema.required() != null && !schema.required().isEmpty()) {
+            mapped.put("required", schema.required());
+        }
+        mapped.put("additionalProperties",
+                schema.additionalProperties() == null ? Boolean.FALSE : schema.additionalProperties());
+        return mapped;
     }
 
     private String executeToolCall(OpenAiToolCall toolCall) {

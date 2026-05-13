@@ -3,16 +3,17 @@ package com.ssuai.domain.chat.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -215,7 +216,7 @@ class LlmChatServiceTests {
         ChatResponse response = chatService.reply("c-test", "캠퍼스 시설 알려줘");
 
         assertThat(response.reply()).isEqualTo("시설 종류를 한 단어로 물어봐 주세요.");
-        verifyNoInteractions(mcpClient);
+        verify(mcpClient, never()).callTool(any());
         String toolContent = provider.request(1).messages().stream()
                 .filter(message -> "tool".equals(message.role()))
                 .findFirst()
@@ -271,7 +272,7 @@ class LlmChatServiceTests {
 
         assertThat(response.reply()).contains("아직은 로그인 연동이 필요한 학사 정보");
         assertThat(gemini.callCount()).isZero();
-        verifyNoInteractions(mcpClient);
+        verify(mcpClient, never()).callTool(any());
     }
 
     @Test
@@ -284,7 +285,7 @@ class LlmChatServiceTests {
 
         assertThat(response.reply()).contains("비밀번호");
         assertThat(gemini.callCount()).isZero();
-        verifyNoInteractions(mcpClient);
+        verify(mcpClient, never()).callTool(any());
     }
 
     private static org.mockito.ArgumentMatcher<McpSchema.CallToolRequest> named(String toolName) {
@@ -328,11 +329,56 @@ class LlmChatServiceTests {
     }
 
     private LlmChatService chatService(List<LlmProvider> providers, LlmChatProperties properties) {
+        stubMcpToolDiscovery();
         return new LlmChatService(
                 properties,
                 providers,
                 new ObjectMapper(),
                 List.of(mcpClient)
+        );
+    }
+
+    private void stubMcpToolDiscovery() {
+        doReturn(true).when(mcpClient).isInitialized();
+        doReturn(canonicalListToolsResult()).when(mcpClient).listTools();
+    }
+
+    private static McpSchema.ListToolsResult canonicalListToolsResult() {
+        return new McpSchema.ListToolsResult(
+                List.of(
+                        canonicalTool("get_today_meal",
+                                "오늘 숭실대학교 학생식당 메뉴를 조회합니다.",
+                                emptyObjectSchema()),
+                        canonicalTool("get_meal_by_date",
+                                "지정한 날짜의 숭실대학교 학생식당 메뉴를 조회합니다.",
+                                requiredStringSchema("date", "yyyy-MM-dd 형식의 날짜")),
+                        canonicalTool("get_dorm_weekly_meal",
+                                "이번 주 숭실대학교 기숙사 식단을 조회합니다.",
+                                emptyObjectSchema()),
+                        canonicalTool("search_campus_facilities",
+                                "숭실대학교 캠퍼스 시설을 검색합니다.",
+                                requiredStringSchema("query", "검색어. 비워두지 마세요."))
+                ),
+                null
+        );
+    }
+
+    private static McpSchema.Tool canonicalTool(String name, String description, McpSchema.JsonSchema schema) {
+        return new McpSchema.Tool(name, null, description, schema, null, null, null);
+    }
+
+    private static McpSchema.JsonSchema emptyObjectSchema() {
+        return new McpSchema.JsonSchema("object", Map.of(), List.of(), Boolean.FALSE, null, null);
+    }
+
+    private static McpSchema.JsonSchema requiredStringSchema(String property, String description) {
+        return new McpSchema.JsonSchema(
+                "object",
+                Map.of(property, Map.of("type", "string", "description", description)),
+                List.of(property),
+                Boolean.FALSE,
+                null,
+                null
         );
     }
 
