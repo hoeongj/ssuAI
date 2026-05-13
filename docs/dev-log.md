@@ -3,6 +3,15 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-14
+
+- 2026-05-14: LLM 모드 + MCP self-dogfood 실서버 부팅 3중 장애 (RestClient.Builder
+  / ObjectMapper / MCP client SSE chicken-and-egg) 해결. `LlmProviderConfig` 에
+  명시적 `RestClient.Builder` + `@Primary ObjectMapper` 빈. `application.yml`
+  에 `spring.ai.mcp.client.initialized: false` + `toolcallback.enabled: false`.
+  `LlmChatService` 의 MCP client 주입에 `@Lazy`. `POST /api/chat` 에 실제
+  Gemini + 실 학식 connector 로 end-to-end 응답 확인. TROUBLESHOOTING 항목 추가.
+
 ## 2026-05-13
 
 - 2026-05-13: Chat tool 목록을 MCP server 의 `listTools()` 로 동적 발견. 정적

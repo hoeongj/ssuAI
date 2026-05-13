@@ -14,6 +14,17 @@ spring:
         name: ssuai-self-mcp-client
         version: 0.0.1
         type: SYNC
+        # Defer the SSE handshake to the first chat request: the MCP server
+        # we are connecting to is in the same JVM, and its /sse endpoint is
+        # only ready once Tomcat finishes binding the port — initializing
+        # the client during context refresh deadlocks against startup.
+        initialized: false
+        # We do not use Spring AI's ChatClient ToolCallback bridge; the chat
+        # path is OpenAI-compatible REST (ADR 0009) and discovers tools via
+        # mcpClient.listTools() lazily (ADR 0011). Leaving this on would
+        # also block startup trying to list tools over /sse.
+        toolcallback:
+          enabled: false
         request-timeout: 10s
         sse:
           connections:
