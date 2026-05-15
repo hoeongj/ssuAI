@@ -29,6 +29,7 @@ class McpServerConfigTests {
                         "get_today_meal",
                         "get_meal_by_date",
                         "get_dorm_weekly_meal",
-                        "search_campus_facilities");
+                        "search_campus_facilities",
+                        "get_library_seat_status");
     }
 }

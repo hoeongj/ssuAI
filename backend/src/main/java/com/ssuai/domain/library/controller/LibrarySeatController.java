@@ -1,0 +1,41 @@
+package com.ssuai.domain.library.controller;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.ssuai.domain.library.dto.LibraryFloor;
+import com.ssuai.domain.library.dto.LibrarySeatStatusResponse;
+import com.ssuai.domain.library.service.LibrarySeatService;
+import com.ssuai.global.response.ApiResponse;
+
+@RestController
+@RequestMapping("/api/library")
+@Tag(name = "Library", description = "Library seat status API")
+public class LibrarySeatController {
+
+    private final LibrarySeatService libraryService;
+
+    public LibrarySeatController(LibrarySeatService libraryService) {
+        this.libraryService = libraryService;
+    }
+
+    @GetMapping("/seats")
+    @Operation(summary = "Get current library seat availability for a floor")
+    public ApiResponse<LibrarySeatStatusResponse> getSeatStatus(
+            @RequestParam
+            @Parameter(
+                    description = "Library floor code. Allowed values: -1 (B1), 1, 2, 3, 4, 5, 6.",
+                    required = true,
+                    example = "4"
+            )
+            int floor
+    ) {
+        LibraryFloor target = LibraryFloor.fromCode(floor);
+        return ApiResponse.success(libraryService.getSeatStatus(target));
+    }
+}

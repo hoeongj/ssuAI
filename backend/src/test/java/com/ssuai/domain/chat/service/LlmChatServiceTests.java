@@ -414,7 +414,10 @@ class LlmChatServiceTests {
                                 emptyObjectSchema()),
                         canonicalTool("search_campus_facilities",
                                 "숭실대학교 캠퍼스 시설을 검색합니다.",
-                                requiredStringSchema("query", "검색어. 비워두지 마세요."))
+                                requiredStringSchema("query", "검색어. 비워두지 마세요.")),
+                        canonicalTool("get_library_seat_status",
+                                "숭실대학교 중앙도서관의 좌석 현황을 층별로 조회합니다.",
+                                requiredIntegerSchema("floor", "도서관 층 코드 (-1, 1, 2, 3, 4, 5, 6)"))
                 ),
                 null
         );
@@ -432,6 +435,17 @@ class LlmChatServiceTests {
         return new McpSchema.JsonSchema(
                 "object",
                 Map.of(property, Map.of("type", "string", "description", description)),
+                List.of(property),
+                Boolean.FALSE,
+                null,
+                null
+        );
+    }
+
+    private static McpSchema.JsonSchema requiredIntegerSchema(String property, String description) {
+        return new McpSchema.JsonSchema(
+                "object",
+                Map.of(property, Map.of("type", "integer", "description", description)),
                 List.of(property),
                 Boolean.FALSE,
                 null,

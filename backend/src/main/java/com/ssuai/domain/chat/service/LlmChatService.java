@@ -54,6 +54,7 @@ public class LlmChatService implements ChatService {
             - 학생식당 메뉴 (get_today_meal, get_meal_by_date)
             - 기숙사 식단 (get_dorm_weekly_meal)
             - 캠퍼스 시설 검색 (search_campus_facilities)
+            - 중앙도서관 좌석 현황 (get_library_seat_status, floor 코드: -1 B1, 1~6 1~6층)
 
             행동 원칙:
             1. 모호한 질문도 일단 가장 그럴듯한 가정으로 즉시 도구를 불러. 되묻기는
@@ -77,10 +78,10 @@ public class LlmChatService implements ChatService {
             """;
 
     private static final String SCOPE_GUIDANCE =
-            "아직은 로그인 연동이 필요한 학사 정보는 못 가져와요. 지금은 학식, 기숙사 식단, 캠퍼스 시설만 도와줄 수 있어요.";
+            "아직은 로그인 연동이 필요한 학사 정보는 못 가져와요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석 현황만 도와줄 수 있어요.";
 
     private static final String SECRET_GUIDANCE =
-            "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설만 도와줄 수 있어요.";
+            "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석 현황만 도와줄 수 있어요.";
 
     private static final int MAX_CHAT_TOOL_FACILITY_RESULTS = 10;
     private static final int MAX_TOOL_CONTENT_BYTES = 8 * 1024;
@@ -382,6 +383,10 @@ public class LlmChatService implements ChatService {
                     }
                     yield callMcp(toolName, Map.of("query", query));
                 }
+                case "get_library_seat_status" -> {
+                    int floor = requiredIntArgument(toolCall, "floor");
+                    yield callMcp(toolName, Map.of("floor", floor));
+                }
                 default -> toolError("지원하지 않는 도구입니다: " + toolName);
             };
         } catch (IllegalArgumentException | IllegalStateException exception) {
@@ -436,6 +441,7 @@ public class LlmChatService implements ChatService {
                 case "get_today_meal", "get_meal_by_date" -> compactMealNode(tree);
                 case "get_dorm_weekly_meal" -> compactWeeklyMealNode(tree);
                 case "search_campus_facilities" -> compactFacilityListNode(tree);
+                case "get_library_seat_status" -> compactLibrarySeatNode(tree);
                 default -> tree;
             };
             return capLength(objectMapper.writeValueAsString(compacted));
@@ -505,6 +511,30 @@ public class LlmChatService implements ChatService {
         return compact;
     }
 
+    private ObjectNode compactLibrarySeatNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyIntIfPresent(node, compact, "floor");
+        copyTextIfPresent(node, compact, "floorLabel");
+        copyIntIfPresent(node, compact, "totalSeats");
+        copyIntIfPresent(node, compact, "availableSeats");
+        copyIntIfPresent(node, compact, "reservedSeats");
+        copyIntIfPresent(node, compact, "outOfServiceSeats");
+        JsonNode zones = node.get("zones");
+        if (zones != null && zones.isArray() && !zones.isEmpty()) {
+            compact.set("zones", filterArray(zones, this::compactLibrarySeatZoneNode));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactLibrarySeatZoneNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "label");
+        copyIntIfPresent(node, compact, "total");
+        copyIntIfPresent(node, compact, "available");
+        copyNonEmptyArray(node, compact, "seatIds");
+        return compact;
+    }
+
     private ObjectNode compactFacilityNode(JsonNode node) {
         ObjectNode compact = objectMapper.createObjectNode();
         copyTextIfPresent(node, compact, "name");
@@ -526,6 +556,13 @@ public class LlmChatService implements ChatService {
         JsonNode value = source.get(field);
         if (value != null && !value.isNull() && !value.asText("").isBlank()) {
             target.put(field, value.asText());
+        }
+    }
+
+    private static void copyIntIfPresent(JsonNode source, ObjectNode target, String field) {
+        JsonNode value = source.get(field);
+        if (value != null && !value.isNull() && value.isNumber()) {
+            target.put(field, value.asInt());
         }
     }
 
@@ -553,6 +590,24 @@ public class LlmChatService implements ChatService {
             throw new IllegalArgumentException(fieldName + ": 필수 인자입니다.");
         }
         return value;
+    }
+
+    private int requiredIntArgument(OpenAiToolCall toolCall, String fieldName) {
+        JsonNode value = arguments(toolCall).get(fieldName);
+        if (value == null || value.isNull()) {
+            throw new IllegalArgumentException(fieldName + ": 필수 인자입니다.");
+        }
+        if (value.canConvertToInt()) {
+            return value.asInt();
+        }
+        if (value.isTextual()) {
+            try {
+                return Integer.parseInt(value.asText().trim());
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException(fieldName + ": 정수여야 합니다.", exception);
+            }
+        }
+        throw new IllegalArgumentException(fieldName + ": 정수여야 합니다.");
     }
 
     private String optionalArgument(OpenAiToolCall toolCall, String fieldName) {

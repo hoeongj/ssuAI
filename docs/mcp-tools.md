@@ -7,8 +7,8 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 
 현재 transport 는 SSE(Server-Sent Events) / Streamable HTTP 계열이며 기본 endpoint 는 `http://localhost:8080/sse` 이다. 이 문서는 local 개발 환경에서 MCP server 를 띄우고 MCP inspector, Claude Desktop, Cursor 에 연결하는 절차만 다룬다.
 
-## 2. 노출 tool 4개
-현재 MCP server 는 read-only tool 4개를 제공한다. 응답 DTO 의 자세한 JSON shape 는 Java record 가 source of truth 이므로 도메인 타입명만 적는다.
+## 2. 노출 tool 5개
+현재 MCP server 는 read-only tool 5개를 제공한다. 응답 DTO 의 자세한 JSON shape 는 Java record 가 source of truth 이므로 도메인 타입명만 적는다.
 
 | tool name | 설명 | 인자 | 응답 DTO |
 | --- | --- | --- | --- |
@@ -16,6 +16,7 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 | `get_meal_by_date` | 지정한 날짜의 숭실대학교 캠퍼스 식당 메뉴를 조회한다. `restaurant` 동작은 `get_today_meal` 과 동일. | `date`: `yyyy-MM-dd` (예: `2026-05-07`), `restaurant` (선택): 위와 동일 | `MealResponse` |
 | `get_dorm_weekly_meal` | 레지던스홀 기숙사 식당의 이번 주 주간 메뉴를 조회한다. | 없음 | `WeeklyMealResponse` |
 | `search_campus_facilities` | 식당, 카페, 편의점, 서점, 복사/출력 시설 등을 검색한다. `query` 가 비어 있으면 전체 시설을 반환한다. | `query`: 선택 문자열 | `CampusFacilityListResponse` |
+| `get_library_seat_status` | 중앙도서관의 층별 좌석 현황 (전체/이용 가능/예약/사용 불가) 과 구역별 분포를 반환한다. 읽기 전용; 예약은 Phase 4 의 별도 도구. | `floor`: 정수 (`-1` B1, `1`~`6` 1~6층) | `LibrarySeatStatusResponse` |
 
 학식 데이터는 `WeeklyMealCache` 가 애플리케이션 시작 시점과 매주 월요일 06:00 KST 에 일괄 적재하므로, `get_today_meal` / `get_meal_by_date` 호출은 일반적으로 캐시 히트로 응답한다. 캐시 miss 가 발생하면 그 자리에서 connector 를 호출해 채워 넣는다.
 
@@ -27,7 +28,6 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 | --- | --- | --- | --- |
 | Phase 2 | `search_library_book` | read | 도서관 도서 검색 |
 | Phase 2 | `get_library_book_status` | read | 책 보유/대출 상태 |
-| Phase 2 | `get_library_seat_status` | read | 도서관 좌석 실시간 잔여 (층/구역 필터) |
 | Phase 3 | `get_my_schedule` | read (auth 필요) | 내 시간표 |
 | Phase 3 | `get_my_grades` | read (auth 필요) | 내 성적 |
 | Phase 3 | `get_my_assignments` | read (auth 필요) | 내 LMS 과제 |
@@ -40,7 +40,7 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 
 `reserve_library_seat` 는 ssuAI 의 flagship deliverable 이다. write tool 의 confirmation / dry-run / audit log / 분산 lock 정책은 §8 참고.
 
-Tool 구현은 `com.ssuai.domain.mcp.tool` 아래의 `MealMcpTools`, `DormMcpTools`, `CampusMcpTools` 에 있다. 각 tool 은 Connector 를 직접 호출하지 않고 도메인 Service 에만 위임한다. REST 와 MCP 가 같은 business logic 을 공유하게 하기 위한 규칙이다.
+Tool 구현은 `com.ssuai.domain.mcp.tool` 아래의 `MealMcpTools`, `DormMcpTools`, `CampusMcpTools`, `LibrarySeatMcpTool` 에 있다. 각 tool 은 Connector 를 직접 호출하지 않고 도메인 Service 에만 위임한다. REST 와 MCP 가 같은 business logic 을 공유하게 하기 위한 규칙이다.
 
 `/api/chat` 의 LLM mode 도 같은 tool bean 을 재사용한다. 다만 chat 내부에서는
 LLM prompt 비용을 줄이기 위해 tool 응답을 그대로 넣지 않고 compact JSON 으로
@@ -68,6 +68,7 @@ ssuai:
   connector:
     meal: mock
     dorm-meal: mock
+    library-seat: mock
 ```
 
 따라서 기본 실행에서는 외부 사이트를 hit 하지 않는다. local 에서 MCP 연결, tool 목록, DTO shape 만 확인하려면 mock connector 로 충분하다.

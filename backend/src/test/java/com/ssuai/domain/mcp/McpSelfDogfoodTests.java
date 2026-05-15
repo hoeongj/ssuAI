@@ -17,9 +17,9 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * End-to-end check that the chatbot's "talk to my own MCP server over SSE" claim
  * (ADR 0010) is actually wired: the running Spring Boot process must accept a
- * Spring AI MCP client connection on its own /sse endpoint, expose the same 4
- * tools, and complete a real tool round-trip without the in-process bean
- * shortcut.
+ * Spring AI MCP client connection on its own /sse endpoint, expose every tool
+ * currently bundled in the server, and complete a real tool round-trip without
+ * the in-process bean shortcut.
  *
  * The MCP client is built manually here rather than via auto-config to avoid a
  * Spring bean-vs-Tomcat startup race: the auto-configured client would try to
@@ -36,7 +36,7 @@ class McpSelfDogfoodTests {
     private int serverPort;
 
     @Test
-    void clientCanListAllFourToolsExposedByServer() {
+    void clientCanListEveryToolExposedByServer() {
         try (McpSyncClient client = openClient()) {
             client.initialize();
 
@@ -48,8 +48,32 @@ class McpSelfDogfoodTests {
                             "get_today_meal",
                             "get_meal_by_date",
                             "get_dorm_weekly_meal",
-                            "search_campus_facilities"
+                            "search_campus_facilities",
+                            "get_library_seat_status"
                     );
+        }
+    }
+
+    @Test
+    void clientCanCallLibrarySeatStatusOverSse() {
+        try (McpSyncClient client = openClient()) {
+            client.initialize();
+
+            McpSchema.CallToolResult result = client.callTool(
+                    new McpSchema.CallToolRequest(
+                            "get_library_seat_status",
+                            Map.of("floor", 4)));
+
+            assertThat(result.isError()).isNotEqualTo(Boolean.TRUE);
+            String text = result.content().stream()
+                    .filter(content -> content instanceof McpSchema.TextContent)
+                    .map(content -> ((McpSchema.TextContent) content).text())
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(text)
+                    .contains("\"floor\"")
+                    .contains("\"availableSeats\"")
+                    .contains("\"zones\"");
         }
     }
 

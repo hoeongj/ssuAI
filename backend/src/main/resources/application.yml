@@ -53,7 +53,14 @@ ssuai:
   connector:
     meal: mock # mock | real
     dorm-meal: mock # mock | real
+    library-seat: mock # mock | real
     chat: ${SSUAI_CONNECTOR_CHAT:mock} # mock | llm
+  library:
+    seat:
+      # Per-floor cache TTL. Short enough that students get fresh data
+      # before walking over, long enough that the library page is not
+      # hammered at chat-message frequency.
+      cache-ttl: 30s
   chat:
     llm:
       max-tokens: ${SSUAI_LLM_MAX_TOKENS:400}

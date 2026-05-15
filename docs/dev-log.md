@@ -3,6 +3,19 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-15
+
+- 2026-05-15: Codex hand-off workflow 폐기. `AGENTS.md` 삭제, `CLAUDE.md`/
+  `docs/tasks/12-library-seat-status.md`/`.github/pull_request_template.md`/
+  `README.md`/`TROUBLESHOOTING.md` 정비. `.codex/`, `.tmp/`, `exports/`
+  로컬 폐기물도 제거. Claude 단독 구현자 체제로 전환. PR #76.
+- 2026-05-15: Task 12 backend mock slice. `LibraryFloor` enum, `LibrarySeatZone`/
+  `LibrarySeatStatusResponse` DTO, `LibrarySeatConnector` 인터페이스 + 결정적
+  `MockLibrarySeatConnector`, 30s TTL + single-flight 캐시 `LibrarySeatCache`,
+  `LibrarySeatService`, `GET /api/library/seats?floor=N` 컨트롤러, MCP 도구
+  `get_library_seat_status` 까지 end-to-end 완성. `RealLibrarySeatConnector`
+  는 upstream URL 확정 전까지 보류. ADR 0012 추가.
+
 ## 2026-05-14
 
 - 2026-05-14: LLM 모드 + MCP self-dogfood 실서버 부팅 3중 장애 (RestClient.Builder

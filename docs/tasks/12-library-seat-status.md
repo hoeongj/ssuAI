@@ -248,6 +248,22 @@ Manual verification after deploy:
 Two PRs, sequenced. Skip the multi-step hand-off framing — implement
 directly. Use internal `TaskCreate` to track sub-steps inside each PR.
 
+> **Status (2026-05-15)** — PR 1 is split into two slices because the
+> upstream library URL was not yet available when implementation
+> started:
+>
+> - **PR 1a (in flight, `feat/library-seat-mock-slice`)** — everything
+>   that doesn't need the URL: enum, DTOs, connector interface, **mock
+>   connector**, cache, service, controller, MCP tool, ADR 0012, full
+>   test suite end-to-end against the mock. `ssuai.connector.library-seat`
+>   defaults to `mock`; flipping to `real` will fail-fast until 1b
+>   lands.
+> - **PR 1b (blocked on URL)** — `RealLibrarySeatConnector` (Jsoup,
+>   timeouts, retry), pinned HTML fixtures under
+>   `src/test/resources/library/`, `RealLibrarySeatConnectorHttpTests`
+>   and `RealLibrarySeatConnectorParseTests`. Stop-and-flag conditions
+>   in §8 still apply during 1b research.
+
 ### PR 1 — Backend slice (DTOs → connector → service → controller → MCP)
 
 One reviewable PR that takes the feature end-to-end on the backend:
