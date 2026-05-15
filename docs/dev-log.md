@@ -3,8 +3,45 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-16
+
+- 2026-05-16: Task 14 PR 14b-1 시작 — ssuAI 의 첫 user system. JPA +
+  H2 의존성 추가 (`spring-boot-starter-data-jpa`, `com.h2database:h2`
+  runtimeOnly). `application.yml` 에 datasource (in-memory H2,
+  PostgreSQL 호환 모드) + JPA properties (ddl-auto=update, open-in-view
+  false) 추가. `domain/user/` 패키지 신설 — `Student` JPA entity
+  (studentId PK, name/major/enrollmentStatus, createdAt/lastLoginAt),
+  `StudentRepository`, `StudentService.upsertOnLogin` (재로그인 시 프로필
+  refresh + lastLoginAt bump, 신규 로그인 시 row 생성). Clock 패턴은
+  기존 LibrarySessionStore/LibraryBookCache 와 동일하게 default 생성자
+  Clock.systemUTC() + test 생성자 fixed clock. PR 14b 의 나머지
+  (JwtProvider/SaintSsoService/Controller) 는 별도 PR.
+- 2026-05-16: Task 15 PR 15b 머지 — `RealLibraryBookConnector` (Pyxis
+  JSON API, 익명 GET). RestClient + LibraryBookConnectorConfig 빈
+  (libraryBookRestClient, timeout 적용), needLogin 응답을
+  ConnectorParseException 으로 회귀 감지. fixture 3종 (python/empty/
+  needLogin), MockRestServiceServer 기반 8 케이스 테스트. PR
+  application-prod.yml 에 `library-book: real` 전환. PR #88 (원래 #87
+  base 가 PR 15a 머지로 closed 돼 재오픈).
+
 ## 2026-05-15
 
+- 2026-05-15: Task 15 PR 15a — 도서관 도서 검색 mock 슬라이스 end-to-end.
+  DTO (LibraryBook/LibraryBookSearchResponse/BookStatus), Connector
+  인터페이스 + 결정적 10권 더미 MockLibraryBookConnector, 60s TTL +
+  LRU 200 cap + single-flight LibraryBookCache, 입력 검증 Service
+  (query 1~64자, size cap 20), Controller (`GET /api/library/books`),
+  McpTool `search_library_book`, LlmChatService SYSTEM_PROMPT/SCOPE/
+  SECRET guidance + tool switch + JSON compaction, 챗봇 sample prompt
+  "도서관에 파이썬 책 있어?" 추가. vision.md `search_library_book` 을
+  Phase 2 mock 가동으로 표기. PR #86.
+- 2026-05-15: Task 15 spec — `docs/tasks/15-library-book-search.md`.
+  Phase 2 두 번째 슬라이스. oasis Pyxis 도서 검색 API spike 결과 익명
+  GET 가능 + JSON + PII 없음 확정 (Task 13 좌석 API 의 전면 인증과
+  정반대). endpoint `/pyxis-api/1/collections/2/search?all=k|a|<검색어>
+  &isForPyxis3=true`. cStateCode → BookStatus (READY/LOAN/UNKNOWN)
+  매핑. PR 15a (mock end-to-end) + PR 15b (real Pyxis JSON connector)
+  로 분해. PR #85.
 - 2026-05-15: Session handoff doc — `docs/handoff/2026-05-15-evening.md`.
   사용자가 다른 Claude 계정으로 세션 전환. 다음 세션이 즉시 이어받을 수
   있도록 정리 — 열린 PR 4개 (#80/#81/#82/#83) 상태, 이번 세션 critical
