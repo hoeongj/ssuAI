@@ -6,16 +6,23 @@
 
 ## 1. One-line description
 
-ssuAI is an AI assistant for Soongsil University students that brings campus
-information — academics, courses, cafeteria, and library — into a single
-chatbot, web dashboard, and (later) mobile app.
+The ssuAI project ships **two distinct products** that together unify SSU
+campus information:
 
-The long-term shape of the system is a 4-layer architecture: a public MCP
-server (Layer 1) that any MCP client can use, plus ssuAI's own web/app
-clients (Layer 2), an embedded chatbot (Layer 3), and an action-capable
-agent (Layer 4). See [`docs/vision.md`](vision.md) for the full picture.
-This document covers what we build *first* and *next*; the phases beyond
-that live in the vision document.
+1. **The Soongsil MCP server** — a public server that exposes academic,
+   cafeteria, dorm, facility, and (later) library + u-SAINT/LMS data as
+   MCP standard tools. Claude Desktop, Cursor, or any other MCP client
+   can connect and use it directly.
+2. **The ssuAI web/app** — a self-built client that consumes the MCP
+   server above. A friendly card-based dashboard with an embedded
+   natural-language chatbot and an action-capable AI agent on top, so
+   students can drive their entire school life through one chat box.
+
+The long-term shape is a 4-layer architecture — the MCP server is Layer 1,
+and the ssuAI web/app + chatbot + agent are Layers 2-4. See
+[`docs/vision.md`](vision.md) for the full picture. This document covers
+what we build *first* and *next*; the phases beyond that live in the
+vision document.
 
 ## 2. User problems this project solves
 
