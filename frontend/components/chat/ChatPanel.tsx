@@ -163,7 +163,10 @@ export function ChatPanel() {
             placeholder="메시지를 입력하세요"
             aria-label="채팅 메시지"
             className={cn(
-              "min-h-12 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-6",
+              // text-base on mobile (16px) prevents iOS Safari from auto-zooming
+              // when the textarea gains focus; sm:text-sm keeps the compact 14px
+              // look at tablet+ widths.
+              "min-h-12 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-base leading-6 sm:text-sm",
               "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               "disabled:cursor-not-allowed disabled:opacity-50",
             )}
