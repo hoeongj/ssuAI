@@ -30,6 +30,8 @@ import com.ssuai.domain.chat.dto.ChatResponse;
 import com.ssuai.domain.chat.dto.OpenAiChatCompletionRequest;
 import com.ssuai.domain.chat.dto.OpenAiChatCompletionResponse;
 import com.ssuai.domain.chat.dto.OpenAiToolCall;
+import com.ssuai.domain.chat.memory.ChatConversationStore;
+import com.ssuai.domain.chat.memory.ChatConversationStore.Turn;
 import com.ssuai.domain.chat.service.llm.LlmCompletionRequest;
 import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
 import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
@@ -87,6 +89,7 @@ public class LlmChatService implements ChatService {
     private final LlmChatProperties properties;
     private final Map<String, LlmProvider> providersByName;
     private final ObjectMapper objectMapper;
+    private final ChatConversationStore conversationStore;
     private volatile List<OpenAiChatCompletionRequest.Tool> cachedChatTools;
 
     private final List<McpSyncClient> mcpClients;
@@ -95,12 +98,14 @@ public class LlmChatService implements ChatService {
             LlmChatProperties properties,
             List<LlmProvider> providers,
             ObjectMapper objectMapper,
+            ChatConversationStore conversationStore,
             @Lazy List<McpSyncClient> mcpClients
     ) {
         this.properties = properties;
         this.providersByName = providers.stream()
                 .collect(Collectors.toUnmodifiableMap(LlmProvider::name, Function.identity()));
         this.objectMapper = objectMapper;
+        this.conversationStore = conversationStore;
         this.mcpClients = mcpClients;
     }
 
@@ -115,9 +120,12 @@ public class LlmChatService implements ChatService {
     @Override
     public ChatResponse reply(String conversationId, String message) {
         if (looksLikeSecretInput(message)) {
+            // Never persist the user message: it may contain secrets.
             return new ChatResponse(conversationId, SECRET_GUIDANCE);
         }
         if (looksLikePrivateAcademicRequest(message)) {
+            conversationStore.appendUser(conversationId, message);
+            conversationStore.appendAssistant(conversationId, SCOPE_GUIDANCE);
             return new ChatResponse(conversationId, SCOPE_GUIDANCE);
         }
 
@@ -125,11 +133,15 @@ public class LlmChatService implements ChatService {
         int messageLength = message == null ? 0 : message.length();
         log.info("chat reply started: conversationId={} messageLength={}", conversationId, messageLength);
 
+        List<Turn> history = conversationStore.history(conversationId);
+        conversationStore.appendUser(conversationId, message);
+
         try {
-            ChatResponse response = callLlm(conversationId, message, LlmPrivacyMode.PUBLIC);
+            ChatResponse response = callLlm(conversationId, message, history, LlmPrivacyMode.PUBLIC);
+            conversationStore.appendAssistant(conversationId, response.reply());
             long latencyMs = Duration.between(startedAt, Instant.now()).toMillis();
-            log.info("chat reply completed: conversationId={} messageLength={} latencyMs={}",
-                    conversationId, messageLength, latencyMs);
+            log.info("chat reply completed: conversationId={} messageLength={} latencyMs={} historyTurns={}",
+                    conversationId, messageLength, latencyMs, history.size());
             return response;
         } catch (ChatUnavailableException exception) {
             long latencyMs = Duration.between(startedAt, Instant.now()).toMillis();
@@ -144,11 +156,22 @@ public class LlmChatService implements ChatService {
         }
     }
 
-    private ChatResponse callLlm(String conversationId, String message, LlmPrivacyMode privacyMode) {
-        List<OpenAiChatCompletionRequest.Message> baseMessages = List.of(
-                OpenAiChatCompletionRequest.systemMessage(SYSTEM_PROMPT),
-                OpenAiChatCompletionRequest.userMessage(message)
-        );
+    private ChatResponse callLlm(
+            String conversationId,
+            String message,
+            List<Turn> history,
+            LlmPrivacyMode privacyMode
+    ) {
+        List<OpenAiChatCompletionRequest.Message> baseMessages = new ArrayList<>();
+        baseMessages.add(OpenAiChatCompletionRequest.systemMessage(SYSTEM_PROMPT));
+        for (Turn turn : history) {
+            if (ChatConversationStore.ROLE_USER.equals(turn.role())) {
+                baseMessages.add(OpenAiChatCompletionRequest.userMessage(turn.content()));
+            } else if (ChatConversationStore.ROLE_ASSISTANT.equals(turn.role())) {
+                baseMessages.add(OpenAiChatCompletionRequest.assistantMessage(turn.content()));
+            }
+        }
+        baseMessages.add(OpenAiChatCompletionRequest.userMessage(message));
 
         LlmCompletionResult firstResult = completeAcrossProviders(new LlmCompletionRequest(
                 privacyMode,

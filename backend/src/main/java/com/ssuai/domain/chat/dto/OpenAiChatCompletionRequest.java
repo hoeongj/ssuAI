@@ -27,6 +27,10 @@ public record OpenAiChatCompletionRequest(
         return new Message("user", content, null, null);
     }
 
+    public static Message assistantMessage(String content) {
+        return new Message("assistant", content, null, null);
+    }
+
     public static Message assistantToolCallMessage(String content, List<OpenAiToolCall> toolCalls) {
         return new Message("assistant", content, toolCalls, null);
     }

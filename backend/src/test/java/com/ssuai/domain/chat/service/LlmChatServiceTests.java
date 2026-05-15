@@ -21,11 +21,13 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.Test;
 
+import com.ssuai.domain.chat.config.ChatMemoryProperties;
 import com.ssuai.domain.chat.config.LlmChatProperties;
 import com.ssuai.domain.chat.dto.ChatResponse;
 import com.ssuai.domain.chat.dto.OpenAiChatCompletionRequest;
 import com.ssuai.domain.chat.dto.OpenAiChatCompletionResponse;
 import com.ssuai.domain.chat.dto.OpenAiToolCall;
+import com.ssuai.domain.chat.memory.ChatConversationStore;
 import com.ssuai.domain.chat.service.llm.LlmCompletionRequest;
 import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
 import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
@@ -288,6 +290,60 @@ class LlmChatServiceTests {
         verify(mcpClient, never()).callTool(any());
     }
 
+    @Test
+    void secondTurnRequestIncludesPriorUserAndAssistantHistory() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "학생식당과 숭실도담식당 중 어디가 궁금해?")
+                .reply("gemini-model", "숭실도담식당은 오늘 후라이드치킨이 나와요.");
+        LlmChatService chatService = chatService(List.of(gemini), List.of("gemini"));
+
+        chatService.reply("c-multi", "오늘 학식 뭐야?");
+        ChatResponse second = chatService.reply("c-multi", "도담");
+
+        assertThat(second.reply()).isEqualTo("숭실도담식당은 오늘 후라이드치킨이 나와요.");
+        assertThat(gemini.callCount()).isEqualTo(2);
+
+        List<OpenAiChatCompletionRequest.Message> secondRequestMessages = gemini.request(1).messages();
+        assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::role)
+                .containsExactly("system", "user", "assistant", "user");
+        assertThat(secondRequestMessages.get(1).content()).isEqualTo("오늘 학식 뭐야?");
+        assertThat(secondRequestMessages.get(2).content()).isEqualTo("학생식당과 숭실도담식당 중 어디가 궁금해?");
+        assertThat(secondRequestMessages.get(3).content()).isEqualTo("도담");
+    }
+
+    @Test
+    void historyIsScopedPerConversationId() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "first conv reply")
+                .reply("gemini-model", "second conv reply");
+        LlmChatService chatService = chatService(List.of(gemini), List.of("gemini"));
+
+        chatService.reply("c-one", "첫 대화");
+        chatService.reply("c-two", "다른 대화");
+
+        List<OpenAiChatCompletionRequest.Message> secondRequestMessages = gemini.request(1).messages();
+        assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::role)
+                .containsExactly("system", "user");
+        assertThat(secondRequestMessages.get(1).content()).isEqualTo("다른 대화");
+    }
+
+    @Test
+    void secretLikeInputDoesNotPollutateHistory() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "직전 메시지에 비밀번호가 있었더라도 잊고 학식만 안내할게.");
+        LlmChatService chatService = chatService(List.of(gemini), List.of("gemini"));
+
+        chatService.reply("c-secret", "내 비밀번호는 1234야");
+        ChatResponse second = chatService.reply("c-secret", "오늘 학식 뭐야?");
+
+        assertThat(second.reply()).isEqualTo("직전 메시지에 비밀번호가 있었더라도 잊고 학식만 안내할게.");
+        List<OpenAiChatCompletionRequest.Message> secondRequestMessages = gemini.request(0).messages();
+        assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::content)
+                .doesNotContain("내 비밀번호는 1234야");
+        assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::content)
+                .doesNotContain("비밀번호");
+    }
+
     private static org.mockito.ArgumentMatcher<McpSchema.CallToolRequest> named(String toolName) {
         return request -> request != null && toolName.equals(request.name());
     }
@@ -334,6 +390,7 @@ class LlmChatServiceTests {
                 properties,
                 providers,
                 new ObjectMapper(),
+                new ChatConversationStore(new ChatMemoryProperties()),
                 List.of(mcpClient)
         );
     }
