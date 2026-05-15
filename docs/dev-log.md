@@ -5,6 +5,15 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: Session handoff doc — `docs/handoff/2026-05-16-evening.md`.
+  사용자가 토큰 거의 다 써서 다른 Claude 계정으로 세션 이어받기 위한
+  정리. Task 15 트리 (#85/#86/#88) 머지 완료, Task 14 backend 절반 (#89
+  Student entity + #90 JWT infra) 머지, 남은 PR 14b-3 (SaintSsoService) +
+  PR 14b-4 (Controller) + PR 14c (frontend) 계획. SmartID apiReturnUrl
+  whitelist spike 는 사용자 직접 진행, TTL spike 도 사용자 알릴 때까지
+  대기. 사용자 피드백 — Claude 흔적 (commit trailer / PR body footer)
+  완전 제거. 이번 세션 PR 6개 body footer 정리 완료, 이미 머지된 commit
+  trailer 는 force-push 위험으로 보류.
 - 2026-05-16: Task 14 PR 14b-2 — JWT infra. `io.jsonwebtoken:jjwt-*:0.13.0`
   의존성 추가. `global/auth/` 패키지 신설: `JwtProperties` (secret/issuer/
   access-ttl 15m/refresh-ttl 14d, secret 은 SSUAI_JWT_SECRET env var
