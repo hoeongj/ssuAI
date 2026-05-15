@@ -31,7 +31,7 @@ public class LibrarySessionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Capture the oasis.ssu.ac.kr ssotoken cookie for the current ssuAI session")
+    @Operation(summary = "Capture the oasis.ssu.ac.kr Pyxis-Auth-Token for the current ssuAI session")
     public ApiResponse<Void> captureSession(
             @Valid @RequestBody LibrarySessionCaptureRequest request,
             HttpServletRequest httpRequest
