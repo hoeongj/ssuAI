@@ -7,13 +7,22 @@
 > Edit one, copy to the other.
 
 ## Project
-ssuAI — AI assistant for Soongsil University students.
-**Final goal**: `docs/vision.md` (4-layer system + flagship "도서관 좌석 자동
-예약 에이전트"). Read this first to align with the long-term direction.
-Short-term scope and current MVP state: `docs/product.md`. Architecture
-and security playbooks: `docs/architecture.md`, `docs/security.md`. Read
-only the section relevant to the current task; read the full document
-only when the task is broad or the relevant section is unclear.
+ssuAI — 숭실대학교의 모든 캠퍼스 정보를 단일 MCP 서버로 표준화하고, 그 위에
+챗봇과 AI 에이전트를 쌓아 학생이 자연어 한 마디로 학교 생활을 처리할 수
+있게 하는 캠퍼스 어시스턴트.
+
+**🏆 Flagship — 도서관 좌석 자동 예약 에이전트.** 챗봇이 실시간 도서관
+좌석 데이터를 가지고 사용자와 대화하다가, *"이 자리 예약해줘"* 한 마디에
+에이전트가 학교 도서관 사이트에서 실제 예약을 수행한다. ssuAI 는 단순
+정보 챗봇이 아니라 실제 학교 시스템의 상태를 바꾸는 end-to-end AI
+에이전트까지 가는 프로젝트다.
+
+Read these to align with the long-term direction: `README.md` (한 문장 비전
++ flagship 시나리오), `docs/vision.md` (4-layer 시스템 + phase 로드맵).
+Short-term scope and current MVP state: `docs/product.md`. Architecture and
+security playbooks: `docs/architecture.md`, `docs/security.md`. Read only
+the section relevant to the current task; read the full document only when
+the task is broad or the relevant section is unclear.
 
 ## Your Role
 The developer rotates between three AI agents — **claude1, claude2, codex** —
