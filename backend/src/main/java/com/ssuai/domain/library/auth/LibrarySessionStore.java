@@ -16,12 +16,12 @@ import org.springframework.stereotype.Component;
 
 /**
  * In-memory store of captured library session tokens, keyed by ssuAI session id
- * (Spring HttpSession id for MVP). Values are the upstream `ssotoken` cookie
+ * (Spring HttpSession id for MVP). Values are the upstream `Pyxis-Auth-Token`
  * captured from oasis.ssu.ac.kr after the user logs in on its own page.
  *
  * The raw token never leaves this class outside of the connector that needs it
- * to drive an upstream `Cookie` header. All log messages use the 8-char
- * fingerprint via {@link #fingerprint(String)}.
+ * to drive an upstream `Pyxis-Auth-Token` request header. All log messages use
+ * the 8-char fingerprint via {@link #fingerprint(String)}.
  */
 @Component
 public class LibrarySessionStore {
