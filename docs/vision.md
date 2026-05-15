@@ -253,8 +253,10 @@ write 성격의 액션 도구는 **모두** 다음 규약을 따릅니다.
   PR 14c (frontend) 잔여. 코드 위치: `domain.auth.saint`.
 - 🔜 도서관 세션 인증 — Task 13. PR 13a (백엔드 session store + 401 매핑)
   머지, PR 13c (manual paste UI) + TTL spike 결과 의존.
-- 📋 LMS connector — Playwright headless 등, Phase 3 후반 또는 Phase 4
-  로 ride-along.
+- 📋 LMS connector — Task 17 spec ([`docs/tasks/17-lms-integration.md`](tasks/17-lms-integration.md))
+  pins the LMS host / auth shape spike + `LmsSessionStore` + the first
+  authenticated LMS tool `get_my_assignments`. Auth shape (SmartID-fronted
+  vs school-account form login) decided in the PR 17a spike.
 - u-SAINT / LMS / 도서관 계정 정보 → 학생이 안전하게 위탁할 수 있도록
   AES-GCM 으로 암호화 저장 (`SSUAI_CREDENTIAL_ENCRYPTION_KEY`). 단,
   u-SAINT 는 비밀번호를 ssuAI 가 보지 않는 SmartID SSO 리다이렉트
@@ -275,12 +277,13 @@ write 성격의 액션 도구는 **모두** 다음 규약을 따릅니다.
   수행
 - `cancel_library_seat_reservation`, `extend_library_seat` — 후속
   액션 도구
-- 액션 도구 공용 인프라:
-  - confirmation 흐름 (yes 재사용 금지)
-  - dry-run preview (실행 전 영향 표시)
-  - `action_audit` 테이블 (모든 요청·결과 기록)
-  - 분산 lock (같은 사용자가 같은 액션 동시 실행 금지)
-  - race condition graceful 처리 (좌석 선점 등)
+- 액션 도구 공용 인프라 — [ADR 0015](adr/0015-action-tool-infrastructure.md)
+  에서 메커니즘 확정:
+  - prepare + confirm 두 단계 MCP tool 분리 (confirmation 재사용 금지)
+  - dry-run preview (`prepare_*` 가 반환하는 정확한 문구)
+  - `action_audit` 테이블 (PREPARED → EXECUTING → SUCCESS/FAILURE\_\*/TIMEOUT/EXPIRED/CANCELLED)
+  - 분산 lock (MVP in-process, 멀티 인스턴스 시 Redis SETNX 로 스왑)
+  - race condition graceful 처리 — `FAILURE_RACE` 별도 outcome 코드
 - 챗봇 위 agent loop — "도구 결과 → 다음 도구 호출 결정 → 액션 도구
   실행" 의 multi-turn reasoning 구현
 

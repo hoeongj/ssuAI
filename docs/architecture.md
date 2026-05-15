@@ -525,10 +525,10 @@ Each deferred feature already has a home in this architecture. Knowing
 | Library read tools          | New `domain.library` package, with `LibraryConnector` (Jsoup or HTTP), service-layer real-time seat cache (TTL ≤ 30s), `@Tool` methods `search_library_book`, `get_library_book_status`, `get_library_seat_status`. |
 | User auth for ssuAI itself  | `domain.user` + `global.security` (Spring Security, JWT or session).           |
 | Encrypted credential store  | `domain.user.entity.SchoolCredential` + AES-GCM via `SSUAI_CREDENTIAL_ENCRYPTION_KEY`. Library credentials live here too. |
-| LMS read-only integration   | New `domain.lms` package, with `LmsConnector` (Playwright-based).              |
+| LMS read-only integration   | New `domain.lms` package, plus `domain.auth.lms` for an `LmsSessionStore` mirror of Task 16's `SaintSessionStore`. Connector defaults to Jsoup; escalate to Playwright only on a concrete blocker. Spec: [`docs/tasks/17-lms-integration.md`](tasks/17-lms-integration.md). |
 | u-SAINT read-only           | Currently `domain.auth.saint` (Task 14, identity-only). Realtime academic data tools (성적·시간표·출결) re-issue an SSO flow per call; the package may grow into `domain.usaint` once we settle on a session retention policy. |
 | **Library seat agent (flagship)** | `reserve_library_seat` `@Tool` in `domain.mcp.tool` + new `domain.library.agent` for the per-user reservation flow. Uses `LibraryConnector`'s authenticated write path with the user's encrypted credentials. **Action policy infrastructure** below is its prerequisite. |
-| Action MCP tools (general)  | New `@Tool` methods in `domain.mcp.tool`, each requiring user confirmation, audit log row, and a dry-run mode. Backed by `action_audit` table + Redis distributed lock to block same-user concurrent execution. |
+| Action MCP tools (general)  | New `@Tool` methods in `domain.mcp.tool`, split into `prepare_X` + shared `confirm_action(pending_action_id)`. Backed by `action_audit` table (append-only) + an in-process `ActionLock` interface (Redis SETNX-swappable). Full mechanism in [ADR 0015](adr/0015-action-tool-infrastructure.md). |
 | Notifications               | New `domain.notification` package; Redis for delivery state, web push first.   |
 | Mobile app                  | Separate Expo project; reuses the existing REST API. No backend changes.       |
 

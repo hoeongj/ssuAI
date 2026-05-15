@@ -30,7 +30,7 @@ MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend
 | Phase 2 | `get_library_book_status` | read | 단일 책 보유/대출 상세 (현재는 `search_library_book` 응답에 상태 포함) |
 | Phase 3 | `get_my_schedule` | read (auth 필요) | 내 시간표 |
 | Phase 3 | `get_my_grades` | read (auth 필요) | 내 성적 |
-| Phase 3 | `get_my_assignments` | read (auth 필요) | 내 LMS 과제 |
+| Phase 3 | `get_my_assignments` | read (auth 필요) | 내 LMS 과제 — Task 17 ([`tasks/17-lms-integration.md`](tasks/17-lms-integration.md)) |
 | Phase 3 | `get_my_library_loans` | read (auth 필요) | 내 도서관 대출 현황 |
 | **Phase 4** | **`reserve_library_seat`** | **write (flagship)** | **도서관 사이트에 좌석 예약 POST 자동 수행** |
 | Phase 4 | `cancel_library_seat_reservation` | write | 본인이 잡은 좌석 취소 |
@@ -328,15 +328,15 @@ ssuAI 의 가장 중요한 write tool 은 **`reserve_library_seat`** 이다.
 
 ### Write tool 공통 정책
 
-향후 예약, 제출, 설정 변경처럼 실제 학교 시스템 상태를 바꾸는 tool 을 추가할 때는 다음 원칙을 적용한다.
+향후 예약, 제출, 설정 변경처럼 실제 학교 시스템 상태를 바꾸는 tool 을 추가할 때는 다음 원칙을 적용한다. 메커니즘 (prepare + confirm 분리, audit 상태기계, lock seam) 은 [ADR 0015](adr/0015-action-tool-infrastructure.md) 가 source of truth.
 
-- 사용자 명시 confirmation 을 반드시 받는다. 한 번 받은 confirmation 을 다른 액션에 재사용하지 않는다.
-- 실행 전 dry-run 결과를 먼저 보여준다. (예: "412번 좌석을 16:00–20:00 예약합니다.")
-- 실행 요청과 결과를 `action_audit` 테이블에 row 로 남긴다.
-- 실패, 부분 성공, 취소, race condition (다른 학생이 직전 선점) 등 모든 상태를 사용자에게 명확히 반환한다.
-- 같은 사용자의 같은 액션 동시 실행은 Redis 분산 lock 으로 차단한다.
-- `docs/security.md` §5 의 credential 정책과 §6 의 action confirmation 정책을 지킨다.
-- 비밀번호, session cookie, token, 학생 개인정보를 log 에 남기지 않는다.
+- 모든 write tool 은 **`prepare_X` + 공용 `confirm_action(pending_action_id)`** 두 개의 MCP tool 로 노출한다. confirmation 은 채팅 turn 약속이 아니라 서버 측 single-use 토큰.
+- `prepare_X` 가 정확한 dry-run 문구를 반환하고 `action_audit` 에 `PREPARED` row 를 기록한다. 사용자가 본 문구가 그대로 row 에 박힌다.
+- `confirm_action` 은 lookup → in-process lock → 실제 upstream 호출 → audit 상태 전이 (`SUCCESS` / `FAILURE_RACE` / `FAILURE_AUTH` / `FAILURE_UPSTREAM` / `TIMEOUT`) 만 담당한다.
+- `pending_action_id` TTL 은 5분. 만료된 id 로 confirm 호출 시 `EXPIRED` outcome 반환, upstream 호출 없음.
+- 같은 사용자의 같은 액션 동시 실행은 `ActionLock` (MVP in-process, 멀티 인스턴스 배포 시 Redis SETNX 로 스왑) 으로 차단.
+- race condition (다른 학생이 직전 선점) 은 별도 outcome `FAILURE_RACE` — agent loop 이 "다음 좌석" 자동 제안 가능하게 구분.
+- 비밀번호, session cookie, token, 학생 개인정보, upstream HTML 은 audit row 와 log 어디에도 안 들어간다 (`docs/security.md` §4 / §5).
 - `docs/architecture.md` 의 MCP 안전 정책과 Service layer 위임 규칙을 유지한다.
 
-구체적인 write tool UX, audit table shape, confirmation payload 는 별도 task 에서 정의한다. 그 전까지 ssuAI MCP server 는 read-only 도구만 제공한다.
+구체적인 per-tool 사양 (e.g. `reserve_library_seat` 의 좌석 id 파싱, 예약 POST 형태, race body 감지 regex) 은 ADR 0015 의 기반 위에 별도 task 가 정의한다. 그 전까지 ssuAI MCP server 는 read-only 도구만 제공한다.

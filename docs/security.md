@@ -236,22 +236,22 @@ write, anything u-SAINT write) must:
 
 ### Audit log
 
-When action features land, add an `action_audit` table:
+When action features land, the project ships one shared `action_audit`
+table. The full schema, the `PREPARED → EXECUTING → SUCCESS/FAILURE_*`
+state machine, and the `prepare_X` + `confirm_action` MCP shape are
+pinned in [ADR 0015](adr/0015-action-tool-infrastructure.md). The
+short summary, kept here so this doc remains the security source of
+truth, is:
 
-```
-id (uuid)
-user_id (fk)
-tool_name (text)
-input_payload (jsonb, sensitive fields masked)
-dry_run (bool)
-outcome (text: SUCCESS | FAILURE | TIMEOUT | CANCELLED)
-error_message (text, nullable)
-requested_at (timestamptz)
-completed_at (timestamptz)
-```
-
-Audit rows are append-only. Users can read their own rows; nobody can
-delete them through the API.
+- One row per action, mutated in place across `PREPARED → EXECUTING →`
+  terminal state. `dry_run_preview` records the exact text shown to
+  the user.
+- Append-only via DB grant — the application user has no `DELETE` on
+  the table. Users can read their own rows via API; nobody can delete
+  through the API.
+- Sensitive fields on the input payload are masked at write time
+  (same `@SensitiveField` machinery §4 requires for logs). Cookies,
+  tokens, school passwords, and upstream HTML never enter the row.
 
 ---
 
