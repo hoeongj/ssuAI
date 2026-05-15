@@ -1,7 +1,7 @@
-# CLAUDE.md
+# AGENTS.md
 
-> **This file is kept in sync with `AGENTS.md` (identical body content).**
-> Claude Code loads `CLAUDE.md` automatically; Codex CLI loads `AGENTS.md`
+> **This file is kept in sync with `CLAUDE.md` (identical body content).**
+> Codex CLI loads `AGENTS.md` automatically; Claude Code loads `CLAUDE.md`
 > automatically. To keep claude1 / claude2 / codex on the same playbook,
 > any change to project rules MUST update **both** files in the same commit.
 > Edit one, copy to the other.
