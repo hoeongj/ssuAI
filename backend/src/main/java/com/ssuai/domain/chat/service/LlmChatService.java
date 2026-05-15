@@ -1,7 +1,11 @@
 package com.ssuai.domain.chat.service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -22,6 +26,7 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -85,6 +90,9 @@ public class LlmChatService implements ChatService {
     private static final String SECRET_GUIDANCE =
             "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Locale KOREAN = Locale.KOREAN;
+
     private static final int MAX_CHAT_TOOL_FACILITY_RESULTS = 10;
     private static final int MAX_TOOL_CONTENT_BYTES = 8 * 1024;
     private static final String TOOL_TRUNCATION_MARKER = "...[truncated]";
@@ -93,10 +101,12 @@ public class LlmChatService implements ChatService {
     private final Map<String, LlmProvider> providersByName;
     private final ObjectMapper objectMapper;
     private final ChatConversationStore conversationStore;
+    private final Clock clock;
     private volatile List<OpenAiChatCompletionRequest.Tool> cachedChatTools;
 
     private final List<McpSyncClient> mcpClients;
 
+    @Autowired
     public LlmChatService(
             LlmChatProperties properties,
             List<LlmProvider> providers,
@@ -104,12 +114,41 @@ public class LlmChatService implements ChatService {
             ChatConversationStore conversationStore,
             @Lazy List<McpSyncClient> mcpClients
     ) {
+        this(properties, providers, objectMapper, conversationStore, mcpClients, Clock.system(KST));
+    }
+
+    LlmChatService(
+            LlmChatProperties properties,
+            List<LlmProvider> providers,
+            ObjectMapper objectMapper,
+            ChatConversationStore conversationStore,
+            List<McpSyncClient> mcpClients,
+            Clock clock
+    ) {
         this.properties = properties;
         this.providersByName = providers.stream()
                 .collect(Collectors.toUnmodifiableMap(LlmProvider::name, Function.identity()));
         this.objectMapper = objectMapper;
         this.conversationStore = conversationStore;
         this.mcpClients = mcpClients;
+        this.clock = clock;
+    }
+
+    /**
+     * Emits a per-request system message giving the model today's KST date so it
+     * can resolve relative date references ("어제", "내일", "이번 주") into a
+     * concrete {@code yyyy-MM-dd} for tool calls like
+     * {@code get_meal_by_date}. The static {@code SYSTEM_PROMPT} stays cacheable;
+     * this short volatile slice is the only piece that changes day-to-day.
+     */
+    String buildTodayContextMessage() {
+        LocalDate today = LocalDate.now(clock.withZone(KST));
+        String weekday = today.getDayOfWeek().getDisplayName(TextStyle.SHORT, KOREAN);
+        return String.format(
+                "오늘은 %s (%s) 입니다 (Asia/Seoul 기준). 사용자가 \"어제\", \"오늘\", "
+                        + "\"내일\", \"이번 주\" 같은 상대 날짜를 쓰면 이 날짜를 기준으로 "
+                        + "해석해서 도구의 date 파라미터에 yyyy-MM-dd 형식으로 넘겨.",
+                today, weekday);
     }
 
     private McpSyncClient mcpClient() {
@@ -167,6 +206,7 @@ public class LlmChatService implements ChatService {
     ) {
         List<OpenAiChatCompletionRequest.Message> baseMessages = new ArrayList<>();
         baseMessages.add(OpenAiChatCompletionRequest.systemMessage(SYSTEM_PROMPT));
+        baseMessages.add(OpenAiChatCompletionRequest.systemMessage(buildTodayContextMessage()));
         for (Turn turn : history) {
             if (ChatConversationStore.ROLE_USER.equals(turn.role())) {
                 baseMessages.add(OpenAiChatCompletionRequest.userMessage(turn.content()));

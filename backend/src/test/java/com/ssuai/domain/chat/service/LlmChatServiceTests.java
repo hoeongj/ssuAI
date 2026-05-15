@@ -10,6 +10,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -305,10 +308,10 @@ class LlmChatServiceTests {
 
         List<OpenAiChatCompletionRequest.Message> secondRequestMessages = gemini.request(1).messages();
         assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::role)
-                .containsExactly("system", "user", "assistant", "user");
-        assertThat(secondRequestMessages.get(1).content()).isEqualTo("오늘 학식 뭐야?");
-        assertThat(secondRequestMessages.get(2).content()).isEqualTo("학생식당과 숭실도담식당 중 어디가 궁금해?");
-        assertThat(secondRequestMessages.get(3).content()).isEqualTo("도담");
+                .containsExactly("system", "system", "user", "assistant", "user");
+        assertThat(secondRequestMessages.get(2).content()).isEqualTo("오늘 학식 뭐야?");
+        assertThat(secondRequestMessages.get(3).content()).isEqualTo("학생식당과 숭실도담식당 중 어디가 궁금해?");
+        assertThat(secondRequestMessages.get(4).content()).isEqualTo("도담");
     }
 
     @Test
@@ -323,8 +326,42 @@ class LlmChatServiceTests {
 
         List<OpenAiChatCompletionRequest.Message> secondRequestMessages = gemini.request(1).messages();
         assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::role)
-                .containsExactly("system", "user");
-        assertThat(secondRequestMessages.get(1).content()).isEqualTo("다른 대화");
+                .containsExactly("system", "system", "user");
+        assertThat(secondRequestMessages.get(2).content()).isEqualTo("다른 대화");
+    }
+
+    @Test
+    void injectsCurrentKstDateAsSecondSystemMessage() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "어제는 학생식당 메뉴를 보여줄게요.");
+        // 2026-03-05T03:00Z = 2026-03-05T12:00 KST (Thursday).
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-03-05T03:00:00Z"), ZoneOffset.UTC);
+        LlmChatService chatService = chatServiceWithClock(List.of(gemini), List.of("gemini"), fixedClock);
+
+        chatService.reply("c-date", "어제 학식 뭐야?");
+
+        List<OpenAiChatCompletionRequest.Message> request = gemini.request(0).messages();
+        assertThat(request).extracting(OpenAiChatCompletionRequest.Message::role)
+                .containsExactly("system", "system", "user");
+        assertThat(request.get(0).content()).contains("ssuAI 챗봇");
+        assertThat(request.get(1).content())
+                .contains("2026-03-05")
+                .contains("(목)")
+                .contains("Asia/Seoul")
+                .contains("yyyy-MM-dd");
+    }
+
+    @Test
+    void buildTodayContextMessageHonorsKstZoneAcrossUtcDayBoundary() {
+        FakeProvider gemini = new FakeProvider("gemini")
+                .reply("gemini-model", "ok");
+        // 2026-03-05T20:00Z = 2026-03-06T05:00 KST (Friday).
+        Clock lateUtcEarlyKst = Clock.fixed(Instant.parse("2026-03-05T20:00:00Z"), ZoneOffset.UTC);
+        LlmChatService chatService = chatServiceWithClock(List.of(gemini), List.of("gemini"), lateUtcEarlyKst);
+
+        String dateMessage = chatService.buildTodayContextMessage();
+
+        assertThat(dateMessage).contains("2026-03-06").contains("(금)");
     }
 
     @Test
@@ -392,6 +429,23 @@ class LlmChatServiceTests {
                 new ObjectMapper(),
                 new ChatConversationStore(new ChatMemoryProperties()),
                 List.of(mcpClient)
+        );
+    }
+
+    private LlmChatService chatServiceWithClock(
+            List<LlmProvider> providers, List<String> providerOrder, Clock clock) {
+        stubMcpToolDiscovery();
+        LlmChatProperties props = new LlmChatProperties();
+        props.setProviderOrder(providerOrder);
+        props.setPrivateProviderOrder(List.of("missing-private-provider"));
+        props.setAvailabilityVerificationPasses(0);
+        return new LlmChatService(
+                props,
+                providers,
+                new ObjectMapper(),
+                new ChatConversationStore(new ChatMemoryProperties()),
+                List.of(mcpClient),
+                clock
         );
     }
 
