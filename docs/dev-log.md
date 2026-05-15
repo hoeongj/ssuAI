@@ -5,6 +5,14 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-15
 
+- 2026-05-15: Task 13 §4/§5 디버깅 발견 정정. 실제 oasis Pyxis API 인증은
+  **`Pyxis-Auth-Token` request header** 였음 (spec 가정의 ssotoken cookie X).
+  Endpoint도 `/pyxis-api/api/smuf/reading-rooms` 가 아니라 실제 SPA가 호출하는
+  `/pyxis-api/1/seat-rooms?smufMethodCode=PC&branchGroupId=1` 이 맞음. spec
+  §4 endpoint table + §5 architecture diagram + PR 13b 헤더 설명 정정. PR
+  13c는 manual paste MVP로 spec에 명시. spike script (PR #81)는 이미
+  header-auth로 교체 push 완료. ADR 0013의 cookie 표기는 PR #82 follow-up
+  으로 정정 예정.
 - 2026-05-15: Task 13 §7 #1 spike resolved — **negative**. 브라우저 SOP가
   `ssuai.vercel.app` → `oasis.ssu.ac.kr` popup 의 `document.cookie`/
   `location.href` 모두 차단, `postMessage` 도 oasis 쪽에 listener 못 심어

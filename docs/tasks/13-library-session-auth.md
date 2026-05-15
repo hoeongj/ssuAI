@@ -113,48 +113,51 @@ ssuAI's library auth needs the same property. Two adaptations:
   cookie on its own origin. The frontend WebView/popup reads
   `document.cookie` for `ssotoken` and sends only that to the backend.
 
-## 4. Confirmed endpoints (from today's reverse engineering)
+## 4. Confirmed endpoints (verified 2026-05-15 against a real authenticated SPA capture)
 
 | Path | Status | Notes |
 |---|---|---|
 | `https://oasis.ssu.ac.kr/library-services/smuf/reading-rooms` | 200 (SPA shell) | Public page returns empty Angular shell; data loads via JS |
-| `https://oasis.ssu.ac.kr/pyxis-api/api/login` | POST | Login endpoint. Empty body → `error.badRequest`. Expected payload likely `{loginId, password}` (verify before implementing). |
-| `https://oasis.ssu.ac.kr/pyxis-api/api/smuf/reading-rooms` | GET | Returns seat data. Currently `needLogin`. |
-| `https://oasis.ssu.ac.kr/pyxis-api/api/smuf/rooms` | GET | Adjacent endpoint. Same auth wall. |
-| `https://oasis.ssu.ac.kr/pyxis-api/api/smuf/dashboards` | GET | Adjacent endpoint. Same auth wall. |
+| `https://oasis.ssu.ac.kr/pyxis-api/1/seat-rooms?smufMethodCode=PC&branchGroupId=1` | GET | **Real** seat data endpoint the SPA hits. Returns rooms/seats JSON (~2 KB). Requires `Pyxis-Auth-Token` header. |
+| `https://oasis.ssu.ac.kr/pyxis-api/1/branches` | GET | Branch list. Same auth. |
+| `https://oasis.ssu.ac.kr/pyxis-api/1/favorite-seats?smufMethodCode=PC` | GET | Per-user favorites. Same auth. |
+| `https://oasis.ssu.ac.kr/pyxis-api/1/seat-room-reservable-dates?smufMethodCode=PC&branchGroupId=1` | GET | Reservation date metadata. Same auth. Will matter for Phase 4. |
+| `https://oasis.ssu.ac.kr/pyxis-api/api/login` | POST | Login endpoint. Empty body → `error.badRequest`. Expected payload likely `{loginId, password}` (verify before implementing). **NOT used by ssuAI** — we never call this path because the password never enters our domain. |
 
-Cookie names (from oasis main.js, key
-`commonService.getConfig("AUTH.COOKIE_NAME")`):
+**Auth mechanism (corrected 2026-05-15):**
 
-- `ssotoken` — primary session token. This is what the frontend captures.
-- Side cookies (`uuid*`, `ssotoken*`) — managed by Pyxis, may or may not
-  be needed. Verify experimentally.
+- Pyxis API uses a **`Pyxis-Auth-Token` request header**, NOT a Cookie.
+  Initial spec assumed the `ssotoken` cookie was the API auth token; a
+  real authenticated SPA capture proved otherwise — `ssotoken` is for
+  SPA shell loading on `oasis.ssu.ac.kr` and is unrelated to API auth.
+- The header value is opaque (~32 char alphanumeric). Each
+  authenticated SPA load gets a fresh value.
+- Companion headers the SPA sends (likely required by Pyxis or its WAF):
+  `Accept: application/json, text/plain, */*`, `Referer: https://oasis.ssu.ac.kr/library-services/...`,
+  `User-Agent` (browser UA).
+- 401 / auth failure response shape:
+  `{"success":false,"code":"error.authentication.needLogin","message":"Please log in to use this service."}`
+  (returned with HTTP status 200, not 401 — must inspect body to detect).
 
 ## 5. Architecture
 
 ```text
 Browser                                Backend                  oasis.ssu.ac.kr
 ───────                                ───────                  ───────────────
-[User clicks "도서관 로그인"]
+[User logs into oasis at the official site (separate tab)]
   │
-  │ window.open("https://oasis.ssu.ac.kr/login")
+  │ oasis SPA loads and obtains a `Pyxis-Auth-Token`
+  │ (visible in devtools Network → any /pyxis-api/* request → Request Headers)
+  │
+[User clicks "도서관 로그인" on ssuAI]
+  │
+  │ ssuAI shows a modal: "oasis devtools에서 Pyxis-Auth-Token 값을 복사해 붙여넣어 주세요"
+  │ User pastes the token value
   ▼
-[Popup: oasis login form]
-[User enters library credentials]
-  │
-  │ oasis sets `ssotoken` cookie on its origin
-  ▼
-[Popup: oasis dashboard page loads]
-  │
-  │ parent window polls popup.document.cookie  (same-origin? — see §7)
-  │ OR popup.postMessage(token, parent.origin)
-  ▼
-Parent: extracts ssotoken
-  │
-  │ POST /api/library/session  { token: "<ssotoken>" }
-  ▼                                  ─────────────────────►
+Parent: POST /api/library/session { token: "<Pyxis-Auth-Token>" }
+  │                                   ─────────────────────►
                                      [LibrarySessionStore]
-                                     stores {userId, ssotoken,
+                                     stores {sessionKey, token,
                                              capturedAt, ttl}
                                      ◄─────────────────────
 Parent: invalidate React Query for ["library", "seats"]
@@ -165,12 +168,14 @@ Parent: invalidate React Query for ["library", "seats"]
   │ GET /api/library/seats?floor=4
   ▼                                  ─────────────────────►
                                      [LibrarySeatService]
-                                       reads session for current user
+                                       reads token for current session
                                        │
                                        ▼
                                      [RealLibrarySeatConnector]
-                                       GET /pyxis-api/api/smuf/reading-rooms
-                                       Cookie: ssotoken=<...>      ────────►
+                                       GET /pyxis-api/1/seat-rooms?…
+                                       Pyxis-Auth-Token: <token>   ────────►
+                                       Accept: application/json, text/plain, */*
+                                       Referer: https://oasis.ssu.ac.kr/library-services/...
                                                                   [seat JSON]
                                                                   ◄────────
                                      parse → LibrarySeatStatusResponse
@@ -178,10 +183,11 @@ Parent: invalidate React Query for ["library", "seats"]
 [Card shows real data]
 ```
 
-The same diagram with `smartid.ssu.ac.kr` instead of `oasis.ssu.ac.kr`
-and `sToken+sIdno` extracted from the redirect URL instead of `ssotoken`
-read from the cookie powers Task 14 (u-SAINT). The frontend component
-and `SessionStore` shape are shared.
+Task 14 (u-SAINT) shares **none** of this token-handling code — its
+SmartID-issued `sToken`+`sIdno` are one-shot identity tokens, not a
+session header. The two tasks share only the `domain/auth/` package
+and the phantom-token principle in
+[ADR 0013](../adr/0013-library-session-capture-pattern.md).
 
 ## 6. Package additions
 
@@ -262,28 +268,37 @@ Three PRs, sequenced.
 
 ### PR 13b — `RealLibrarySeatConnector` + parse fixtures
 
-- `RealLibrarySeatConnector` using `RestClient` with `Cookie: ssotoken=...`
-  header. Use the new `LibrarySessionStore` to look up the cookie.
+- `RealLibrarySeatConnector` using `RestClient` with
+  `Pyxis-Auth-Token: <token>` request header (plus `Accept`,
+  `Referer`, `User-Agent` companion headers). Use the new
+  `LibrarySessionStore` to look up the token.
+- Target endpoint: `GET /pyxis-api/1/seat-rooms?smufMethodCode=PC&branchGroupId=1`
+  (and floor-filtering variants once we map them).
 - Pin JSON fixtures (from a real authenticated dev session of the user)
   to `backend/src/test/resources/library/` — **NEVER commit the
-  ssotoken**; only the response JSON with student-identifying fields
+  token**; only the response JSON with any student-identifying fields
   scrubbed.
 - Parse tests against fixtures.
 - Property `ssuai.connector.library-seat=real` switches the bean.
 - Manual smoke: developer logs in via frontend popup → curl returns real
   seat data.
 
-### PR 13c — Frontend popup login + auto re-fetch
+### PR 13c — Frontend capture flow (manual paste MVP)
 
-- `LibraryLoginButton` opens a `400×600` popup at `oasis.ssu.ac.kr/login`
-- `useLibrarySession` orchestrates: open popup → poll URL/cookie until
-  login success → read `ssotoken` → POST to `/api/library/session` →
-  invalidate the `["library", "seats"]` query key
-- `LibrarySeatCard` renders "도서관 로그인" CTA when query errors with
-  `LIBRARY_SESSION_REQUIRED`
-- Tests: button click flow with mocked popup, error→CTA transition
-- ADR 0013 written here (the architecture is now fully observable in
-  code).
+Specific mechanism per spec §12 decision. For option A (manual paste):
+
+- `LibraryLoginButton` opens a "도서관 로그인" modal with step-by-step
+  guidance (screenshot + numbered steps for capturing the
+  `Pyxis-Auth-Token` from devtools).
+- Textarea where the user pastes the token value.
+- `useLibrarySession` POSTs to `/api/library/session` → invalidates the
+  `["library", "seats"]` query key.
+- `LibrarySeatCard` renders the "도서관 로그인" CTA when query errors
+  with `LIBRARY_SESSION_REQUIRED`.
+- Tests: paste flow input validation, error→CTA transition, success →
+  query refetch.
+- ADR 0013 already shipped — update its "Implementation status"
+  section here.
 
 ## 9. Security checklist
 
