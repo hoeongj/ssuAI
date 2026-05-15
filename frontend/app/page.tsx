@@ -1,6 +1,7 @@
 import { MessageCircle } from "lucide-react";
 import Link from "next/link";
 
+import { UserGreeting } from "@/components/auth/UserGreeting";
 import { DormWeeklyCard } from "@/components/dorm/DormWeeklyCard";
 import { FacilitySearchCard } from "@/components/facility/FacilitySearchCard";
 import { LibrarySeatCard } from "@/components/library/LibrarySeatCard";
@@ -16,10 +17,13 @@ export default function Home() {
           <p className="text-sm font-medium text-muted-foreground">Soongsil University</p>
           <h1 className="mt-2 truncate text-3xl font-semibold tracking-normal text-foreground">ssuAI</h1>
         </div>
-        <Link href="/chat" className={buttonVariants({ variant: "default" })}>
-          <MessageCircle className="h-4 w-4" aria-hidden="true" />
-          Chat
-        </Link>
+        <div className="flex items-center gap-4">
+          <UserGreeting />
+          <Link href="/chat" className={buttonVariants({ variant: "default" })}>
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            Chat
+          </Link>
+        </div>
       </header>
       <section className="grid gap-4 md:grid-cols-2">
         <TodayMealCard />
