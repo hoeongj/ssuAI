@@ -7,6 +7,7 @@ ssuai:
   connector:
     meal: real
     dorm-meal: real
+    library-book: real
     chat: ${SSUAI_CONNECTOR_CHAT:mock}
   # Production CORS allowlist — exactly one origin (the deployed Vercel
   # project), wired into WebCorsProdConfig. The value is supplied at
