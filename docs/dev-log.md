@@ -5,6 +5,44 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: Task 14 §7 #1 + §10 #1 spike **RESOLVED POSITIVE**.
+  사용자가 실제 SmartID 로그인 → `apiReturnUrl=https://example.com`
+  으로 302 되는 거 확인. `SaintSsoCallbackController` 가 의존하는
+  "SmartID 가 임의 apiReturnUrl 받는다" 는 가정이 retroactive 검증됨.
+  이미 머지된 Task 14 PR 시리즈 (#94/#99/#100/#101/#102) 위의 web-port
+  패턴 그대로 유효. handoff 의 외부 의존 #1 해소, 나머지 3건 (TTL
+  spike / 모바일 CSS / u-SAINT fixture) 만 남음. 사용자에게 채팅
+  paste 시 본인 sToken/sIdno redact 가이드 다시 안내.
+- 2026-05-16: Task 16 PR 16a 의 storage 절반 머지 — `SaintSessionStore`
+  (AES-256-GCM, 12-byte IV, 128-bit tag, 30분 TTL, 1000-entry LRU) +
+  `PortalCookies` / `SaintSessionEntry` records + `SaintSessionProperties`
+  + `SaintSessionExpiredException` + `ErrorCode.SAINT_SESSION_EXPIRED` +
+  `SaintSsoService.authenticate` hook. encryption key 는
+  `SSUAI_CREDENTIAL_ENCRYPTION_KEY` env, 빈 값이면 ephemeral random +
+  WARN (JwtProvider 와 동일 패턴). `SaintSessionStoreTests` 14 케이스
+  (3KB cookie round-trip, TTL eviction, LRU cap, ephemeral vs configured
+  key bootstrap, short-key fail-fast, fingerprint). u-SAINT 시간표/성적
+  fixture capture 는 PR 16b/16c connector parsing 에만 필요해 storage
+  는 spike-독립적으로 먼저 머지. PR #107.
+- 2026-05-16: Phase 4 prep — ADR 0015 (action-tool 공용 인프라).
+  write tool 은 `prepare_X` + 공용 `confirm_action(pending_action_id)`
+  두 MCP tool 로 분리, confirmation 은 채팅 turn 약속이 아니라 서버측
+  single-use 토큰. `action_audit` append-only 상태기계 (PREPARED →
+  EXECUTING → SUCCESS/FAILURE_RACE/FAILURE_AUTH/FAILURE_UPSTREAM/
+  TIMEOUT/EXPIRED/CANCELLED), pending TTL 5분, in-process `ActionLock`
+  seam (Redis SETNX 로 추후 스왑), `FAILURE_RACE` 는 별도 outcome 이라
+  agent loop 이 다음 좌석 자동 제안 가능. ADR Consequences 첫 항목이
+  `reserve_library_seat` 시작 전 ActionInfrastructure 한 PR 깔라는
+  지시. PR #106.
+- 2026-05-16: Task 17 spec — LMS 통합. `get_my_assignments` 메인
+  deliverable. LMS 의 auth shape 가 핵심 unknown — SmartID-fronted
+  (Task 14 콜백 패턴 재사용 가능) vs 학교계정 form-login (security.md
+  §5 "no password proxy" 원칙 하에 비밀번호 메서드 로컬 변수 1회 사용
+  후 폐기) 두 분기 모두 spec 에 명시. `LmsSessionStore` 는
+  `SaintSessionStore` 와 패턴 동형. Jsoup 부터 시도, Playwright 는
+  구체적 blocker 시에만 escalate. 과제 body 는 `LlmChatService.compactToolResponse`
+  에서 절대 LLM prompt 에 안 들어가게 (tool-citation pattern). PR
+  #106 (ADR 0015 와 같이).
 - 2026-05-16: Session handoff doc — `docs/handoff/2026-05-16-evening.md`.
   사용자가 토큰 거의 다 써서 다른 Claude 계정으로 세션 이어받기 위한
   정리. Task 15 트리 (#85/#86/#88) 머지 완료, Task 14 backend 절반 (#89

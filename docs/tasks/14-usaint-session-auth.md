@@ -233,15 +233,16 @@ user table. Previous work was all anonymous-public.
 
 ## 7. Open questions (resolve during implementation)
 
-1. **`apiReturnUrl` whitelist** — **critical spike, do this first.**
-   Some SSO systems whitelist allowed return URLs. ssutoday used
-   `https://saint.ssu.ac.kr/webSSO/sso.jsp` (a saint subdomain), which
-   is plausibly the allowlist. We need to know if SmartID accepts
-   *arbitrary* return URLs. **Spike steps**: hit
+1. **`apiReturnUrl` whitelist** — **RESOLVED POSITIVE 2026-05-16.**
+   Real-user spike confirmed SmartID accepts arbitrary `apiReturnUrl`
+   values. Hitting
    `https://smartid.ssu.ac.kr/Symtra_sso/smln.asp?apiReturnUrl=https%3A%2F%2Fexample.com`
-   in a browser, complete a real login, observe whether SmartID
-   actually 302s to example.com or refuses. If refuses → see §10
-   stop-and-flag #1.
+   in a logged-in browser produced a SmartID 302 to
+   `https://example.com/?sToken=<redacted>&sIdno=<redacted>` — exactly
+   the shape `SaintSsoCallbackController` reads. The web-port pattern
+   is therefore safe to depend on; §10 stop-and-flag #1 does not fire.
+   The PR series that built on this assumption (PRs #94 / #99 / #100 /
+   #101 / #102) stands without rework.
 2. **Portal cookie TTL after phase 2** — we throw the portal cookies
    away after parsing identity, so this only matters for *future*
    realtime-data tools (Task 15+). Document but do not solve here.
@@ -331,11 +332,13 @@ This PR ships **no code**, only spec annotation + dev-log entry.
 Stop and check in with the user during Task 14 work if any of the
 following happens:
 
-- SmartID refuses arbitrary `apiReturnUrl` values → web-port pattern
-  collapses. Fallback options: (a) ssuAI Companion browser extension
-  (Task 13 §12 option B revival), (b) build a tiny iOS/Android app
-  just for the SSO step, (c) negotiate with SSU IT to whitelist our
-  return URL. Surface to user.
+- **RESOLVED POSITIVE 2026-05-16 — does not fire (see §7 #1).**
+  Was: SmartID refuses arbitrary `apiReturnUrl` values → web-port
+  pattern collapses. Fallback options retained for history in case
+  SmartID's behavior changes server-side: (a) ssuAI Companion browser
+  extension (Task 13 §12 option B revival), (b) build a tiny
+  iOS/Android app just for the SSO step, (c) negotiate with SSU IT to
+  whitelist our return URL.
 - saint.ssu.ac.kr portal HTML structure has shifted significantly
   from ssutoday's parse anchors (no `main_box09` etc.) → need to
   re-parse and pin new fixtures.
