@@ -85,6 +85,61 @@ straight from conversation context.
   on Linux/macOS; frontend: `pnpm --dir frontend test|lint|typecheck`)
   before declaring a task done.
 
+## Authorship policy — no Claude attribution
+
+This is a portfolio project. The user must be the sole visible author on
+GitHub. Every commit, PR description, doc, and code comment you produce
+**must not** contain any reference to Claude, "Claude Code", Anthropic,
+the `Co-Authored-By: Claude` trailer, "🤖 Generated with..." footers,
+or any other AI-attribution marker.
+
+- `git commit -m "..."` — message body and trailers contain no
+  Claude/Anthropic/AI mention. No `Co-Authored-By: Claude` trailer ever.
+- `gh pr create --body "..."` — body contains no "🤖 Generated with
+  Claude Code" or similar. Skip the marketing footer entirely.
+- `docs/`, `dev-log`, ADRs, code comments — when explaining a decision,
+  just state the decision; do not say "Claude suggested" or "AI
+  generated". Past dev-log entries that already describe "Claude 단독
+  구현자 체제" as a project-level *workflow* fact are fine — that is
+  documenting a process choice, not crediting authorship.
+- If you find an unmerged feature branch with a Claude trailer in any
+  commit, `git commit --amend` or `git rebase -i` to strip it before
+  pushing.
+- Already-merged commits with a Claude trailer (legacy from before this
+  rule) stay put — `git push --force` to main is too risky to do
+  silently. Only rewrite history if the user explicitly asks.
+
+Note: `noreply@anthropic.com` is not a GitHub-mapped account, so it
+does not show up on the contribution graph or contributors page. The
+visible leak is the literal trailer text inside the commit message.
+
+## Merge policy — auto-merge safe PRs
+
+The user does **not** want a "shall I merge?" confirmation on every PR.
+When a PR you opened satisfies all of the following, run
+`gh pr merge <N> --rebase --delete-branch` immediately, then
+`git checkout main && git pull --ff-only origin main`:
+
+1. `mergeable: MERGEABLE` (no conflicts)
+2. CI / `gradlew test` / `pnpm test` passes (or the PR is docs-only)
+3. Runtime impact is OFF by default — feature flag stays `mock`, prod
+   behavior does not change, OR the prod-flip is part of a sequenced
+   PR plan the user already agreed to
+4. Mostly new files; regression risk on existing code is low
+
+Still ask before: force-pushing main, flipping prod flags out of plan,
+major dependency bumps, DB schema migrations, anything that could affect
+other clones (server/phone) or running deployments.
+
+## External-work-the-user-will-deliver
+
+When the user says "내가 알려줄게" / "끝나면 알려줄게" about an external
+task (PowerShell spike running locally, manual browser test, CI run on a
+device you can't see, response from a teammate, etc.), stop referencing
+that work. Do not poll, do not include it in option matrices ("while we
+wait for X, we could..."), do not add reminders. Move to unrelated
+work. The user will message you the result when they have it.
+
 ## Troubleshooting log policy
 - Troubleshooting entries are portfolio-worthy only; do not add one just
   because a commit, PR, or dev-log entry exists.
