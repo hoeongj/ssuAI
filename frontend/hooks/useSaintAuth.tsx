@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { fetchMe, refreshAccessToken, type AuthMe } from "@/lib/api/auth";
+import { callLogout, fetchMe, refreshAccessToken, type AuthMe } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/types";
 
 export interface SaintAuthState {
@@ -19,8 +19,12 @@ export interface SaintAuthState {
   isAuthenticated: boolean;
   /** Force a refresh-cookie → access-JWT → /me cycle. Returns true on success. */
   refresh: () => Promise<boolean>;
-  /** Clear in-memory auth state. Does NOT invalidate the server-side refresh cookie. */
-  logout: () => void;
+  /**
+   * Best-effort logout: POST /api/auth/logout to clear the refresh cookie,
+   * then wipe in-memory state. Cookie-clear errors are swallowed because
+   * the in-memory state still gets reset so the UI flips to anonymous.
+   */
+  logout: () => Promise<void>;
 }
 
 const SaintAuthContext = createContext<SaintAuthState | null>(null);
@@ -52,7 +56,12 @@ export function SaintAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await callLogout();
+    } catch (error) {
+      console.warn("ssuAI logout cookie clear failed", error);
+    }
     setAccessToken(null);
     setUser(null);
   }, []);

@@ -29,6 +29,19 @@ export async function fetchMe(accessToken: string): Promise<AuthMe> {
 }
 
 /**
+ * Tell the backend to clear the refresh cookie. The browser drops its
+ * copy via the Set-Cookie {@code Max-Age=0} the server echoes back.
+ * Best-effort: ssuAI's refresh JWTs are stateless, so this only clears
+ * the cookie on the current device.
+ */
+export async function callLogout(): Promise<void> {
+  await fetchJson<unknown>("/api/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+/**
  * Build the absolute URL the browser should navigate to in order to
  * kick off the SmartID SSO flow. The backend's `/sso-init` endpoint
  * 302s to SmartID with `apiReturnUrl` already baked in, so the

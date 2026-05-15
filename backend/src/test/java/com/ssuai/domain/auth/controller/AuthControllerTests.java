@@ -183,4 +183,30 @@ class AuthControllerTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
     }
+
+    // ---------- /api/auth/logout ----------
+
+    @Test
+    void logoutClearsRefreshCookieAndReturns200() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error").value(nullValue()))
+                .andExpect(header().string("Set-Cookie",
+                        containsString("ssuai_refresh=")))
+                .andExpect(header().string("Set-Cookie",
+                        containsString("Max-Age=0")))
+                .andExpect(header().string("Set-Cookie", containsString("HttpOnly")))
+                .andExpect(header().string("Set-Cookie", containsString("Path=/api/auth")));
+
+        verifyNoInteractions(jwtProvider, studentService);
+    }
+
+    @Test
+    void logoutIsNoOpForAnonymousCaller() throws Exception {
+        // No cookie attached — endpoint should still 200 + Set-Cookie clear.
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")));
+    }
 }

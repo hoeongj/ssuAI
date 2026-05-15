@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
+import java.time.Duration;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -107,6 +109,31 @@ public class AuthController {
             }
         }
         return null;
+    }
+
+    /**
+     * Clears the refresh cookie by overwriting it with an empty
+     * {@code Max-Age=0} cookie. Always returns 200 so a logout call from
+     * an already-anonymous browser is a no-op rather than an error.
+     *
+     * <p>This is best-effort revocation: ssuAI's refresh JWTs are
+     * stateless, so a copy of the old refresh token sitting in another
+     * tab or stolen elsewhere stays valid until its 14-day TTL expires.
+     * Future "force-logout-all-devices" support would need a refresh-jti
+     * allowlist table; tracked as TODO in ADR 0014.
+     */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletResponse response) {
+        AuthProperties.RefreshCookie cookieConfig = authProperties.getRefreshCookie();
+        ResponseCookie cleared = ResponseCookie.from(cookieConfig.getName(), "")
+                .httpOnly(true)
+                .secure(cookieConfig.isSecure())
+                .sameSite(cookieConfig.getSameSite())
+                .path(cookieConfig.getPath())
+                .maxAge(Duration.ZERO)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cleared.toString());
+        return ApiResponse.success(null);
     }
 
     private ResponseCookie buildRefreshCookie(String refreshToken) {

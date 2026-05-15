@@ -2,12 +2,13 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SaintAuthProvider, useSaintAuth } from "./useSaintAuth";
-import { fetchMe, refreshAccessToken } from "@/lib/api/auth";
+import { callLogout, fetchMe, refreshAccessToken } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/types";
 
 vi.mock("@/lib/api/auth", () => ({
   refreshAccessToken: vi.fn(),
   fetchMe: vi.fn(),
+  callLogout: vi.fn(),
 }));
 
 function AuthHarness() {
@@ -20,7 +21,7 @@ function AuthHarness() {
       <button type="button" onClick={() => void refresh()}>
         refresh
       </button>
-      <button type="button" onClick={logout}>
+      <button type="button" onClick={() => void logout()}>
         logout
       </button>
     </div>
@@ -30,6 +31,7 @@ function AuthHarness() {
 beforeEach(() => {
   vi.mocked(refreshAccessToken).mockReset();
   vi.mocked(fetchMe).mockReset();
+  vi.mocked(callLogout).mockReset();
 });
 
 afterEach(() => {
@@ -82,7 +84,7 @@ describe("SaintAuthProvider", () => {
     expect(fetchMe).not.toHaveBeenCalled();
   });
 
-  it("logout clears the in-memory user", async () => {
+  it("logout calls callLogout and clears the in-memory user", async () => {
     vi.mocked(refreshAccessToken).mockResolvedValue({
       accessToken: "access.jwt",
       accessTtlSeconds: 900,
@@ -93,6 +95,7 @@ describe("SaintAuthProvider", () => {
       major: null,
       enrollmentStatus: null,
     });
+    vi.mocked(callLogout).mockResolvedValue();
 
     render(
       <SaintAuthProvider>
@@ -104,10 +107,47 @@ describe("SaintAuthProvider", () => {
       expect(screen.getByTestId("auth").textContent).toBe("true");
     });
 
-    act(() => {
+    await act(async () => {
       screen.getByRole("button", { name: "logout" }).click();
     });
 
+    expect(callLogout).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("auth").textContent).toBe("false");
+    expect(screen.getByTestId("name").textContent).toBe("");
+  });
+
+  it("logout still clears state when the server call fails", async () => {
+    vi.mocked(refreshAccessToken).mockResolvedValue({
+      accessToken: "access.jwt",
+      accessTtlSeconds: 900,
+    });
+    vi.mocked(fetchMe).mockResolvedValue({
+      studentId: "20231234",
+      name: "홍길동",
+      major: null,
+      enrollmentStatus: null,
+    });
+    vi.mocked(callLogout).mockRejectedValue(
+      new ApiError("HTTP_500", "boom", "trace-1", 500),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(
+      <SaintAuthProvider>
+        <AuthHarness />
+      </SaintAuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth").textContent).toBe("true");
+    });
+
+    await act(async () => {
+      screen.getByRole("button", { name: "logout" }).click();
+    });
+
+    expect(callLogout).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
     expect(screen.getByTestId("auth").textContent).toBe("false");
     expect(screen.getByTestId("name").textContent).toBe("");
   });
