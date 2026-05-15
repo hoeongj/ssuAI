@@ -5,6 +5,12 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-15
 
+- 2026-05-15: Session handoff doc — `docs/handoff/2026-05-15-evening.md`.
+  사용자가 다른 Claude 계정으로 세션 전환. 다음 세션이 즉시 이어받을 수
+  있도록 정리 — 열린 PR 4개 (#80/#81/#82/#83) 상태, 이번 세션 critical
+  발견 (Pyxis 인증이 cookie 아니라 header), TTL spike 진행 상황 (사용자 PC
+  PowerShell 창에서 실행 중), §12 decision tree, 다음 세션 6단계 액션
+  플랜, 보안 주의. 향후 핸드오프 파일은 `docs/handoff/` 에 누적.
 - 2026-05-15: Task 13 §4/§5 디버깅 발견 정정. 실제 oasis Pyxis API 인증은
   **`Pyxis-Auth-Token` request header** 였음 (spec 가정의 ssotoken cookie X).
   Endpoint도 `/pyxis-api/api/smuf/reading-rooms` 가 아니라 실제 SPA가 호출하는
