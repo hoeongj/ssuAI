@@ -198,3 +198,30 @@ Small Git-only fix that can be done by Codex/Claude in a PR:
   session.
 - GHCR package version listing was blocked by missing `read:packages` scope.
 - No Helm value was changed in this diagnosis step.
+
+## Resolution (2026-05-14)
+
+Resolved via commit `5be57d9` (`deploy(backend): enable LLM chat and fix image
+pull policy`), which took a simpler workaround instead of the proposed
+sha-pinning fix above:
+
+- `deploy/charts/ssuai-backend/values.yaml`:
+  `image.pullPolicy: IfNotPresent` → `Always`, so each ArgoCD sync pulls the
+  latest GHCR image rather than reusing the cached `latest` tag on the node.
+- Same file: `env.connectorChat: mock` → `llm` to actually wire the LLM + MCP
+  chat flow in prod.
+
+This unblocks the live rollout of the chatbot-capable backend without changing
+`image.tag`, so Image Updater annotations stay in place for the future.
+
+Still outstanding (intentionally deferred):
+
+- ArgoCD Image Updater is still not writing back concrete `sha-...` tags to
+  Git. The current `pullPolicy: Always` workaround means we re-pull `latest`
+  on every sync, which is good enough for now but loses the
+  "exact image per Git revision" guarantee Image Updater would give us.
+- Revisit when (a) Image Updater becomes blocking, (b) we want immutable
+  rollbacks, or (c) `pullPolicy: Always` causes registry rate-limit or
+  cold-start issues. At that point, restore the original proposed fix and
+  debug the `argocd-image-updater` pod / `argocd-image-updater-git-creds`
+  secret per the steps above.
