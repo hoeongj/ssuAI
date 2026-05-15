@@ -49,7 +49,8 @@ class McpSelfDogfoodTests {
                             "get_meal_by_date",
                             "get_dorm_weekly_meal",
                             "search_campus_facilities",
-                            "get_library_seat_status"
+                            "get_library_seat_status",
+                            "search_library_book"
                     );
         }
     }
@@ -94,6 +95,29 @@ class McpSelfDogfoodTests {
             assertThat(text)
                     .contains("\"date\"")
                     .contains("\"meals\"");
+        }
+    }
+
+    @Test
+    void clientCanCallLibraryBookSearchOverSse() {
+        try (McpSyncClient client = openClient()) {
+            client.initialize();
+
+            McpSchema.CallToolResult result = client.callTool(
+                    new McpSchema.CallToolRequest(
+                            "search_library_book",
+                            Map.of("query", "파이썬")));
+
+            assertThat(result.isError()).isNotEqualTo(Boolean.TRUE);
+            String text = result.content().stream()
+                    .filter(content -> content instanceof McpSchema.TextContent)
+                    .map(content -> ((McpSchema.TextContent) content).text())
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(text)
+                    .contains("\"total\"")
+                    .contains("\"items\"")
+                    .contains("\"title\"");
         }
     }
 

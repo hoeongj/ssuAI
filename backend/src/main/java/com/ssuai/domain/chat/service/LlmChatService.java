@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -55,6 +56,7 @@ public class LlmChatService implements ChatService {
             - 기숙사 식단 (get_dorm_weekly_meal)
             - 캠퍼스 시설 검색 (search_campus_facilities)
             - 중앙도서관 좌석 현황 (get_library_seat_status, floor 코드: -1 B1, 1~6 1~6층)
+            - 중앙도서관 도서 검색 (search_library_book, 키워드로 제목/저자/출판 부분 일치)
 
             행동 원칙:
             1. 모호한 질문도 일단 가장 그럴듯한 가정으로 즉시 도구를 불러. 되묻기는
@@ -78,10 +80,10 @@ public class LlmChatService implements ChatService {
             """;
 
     private static final String SCOPE_GUIDANCE =
-            "아직은 로그인 연동이 필요한 학사 정보는 못 가져와요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석 현황만 도와줄 수 있어요.";
+            "아직은 로그인 연동이 필요한 학사 정보는 못 가져와요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
 
     private static final String SECRET_GUIDANCE =
-            "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석 현황만 도와줄 수 있어요.";
+            "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
 
     private static final int MAX_CHAT_TOOL_FACILITY_RESULTS = 10;
     private static final int MAX_TOOL_CONTENT_BYTES = 8 * 1024;
@@ -387,6 +389,17 @@ public class LlmChatService implements ChatService {
                     int floor = requiredIntArgument(toolCall, "floor");
                     yield callMcp(toolName, Map.of("floor", floor));
                 }
+                case "search_library_book" -> {
+                    String query = optionalArgument(toolCall, "query").trim();
+                    if (query.isBlank()) {
+                        yield toolError("도서 검색은 검색어가 필요합니다. 예: 파이썬, 이펙티브 자바.");
+                    }
+                    LinkedHashMap<String, Object> args = new LinkedHashMap<>();
+                    args.put("query", query);
+                    optionalIntArgument(toolCall, "page").ifPresent(value -> args.put("page", value));
+                    optionalIntArgument(toolCall, "size").ifPresent(value -> args.put("size", value));
+                    yield callMcp(toolName, args);
+                }
                 default -> toolError("지원하지 않는 도구입니다: " + toolName);
             };
         } catch (IllegalArgumentException | IllegalStateException exception) {
@@ -442,6 +455,7 @@ public class LlmChatService implements ChatService {
                 case "get_dorm_weekly_meal" -> compactWeeklyMealNode(tree);
                 case "search_campus_facilities" -> compactFacilityListNode(tree);
                 case "get_library_seat_status" -> compactLibrarySeatNode(tree);
+                case "search_library_book" -> compactLibraryBookSearchNode(tree);
                 default -> tree;
             };
             return capLength(objectMapper.writeValueAsString(compacted));
@@ -535,6 +549,29 @@ public class LlmChatService implements ChatService {
         return compact;
     }
 
+    private ObjectNode compactLibraryBookSearchNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyIntIfPresent(node, compact, "total");
+        copyIntIfPresent(node, compact, "page");
+        copyIntIfPresent(node, compact, "size");
+        JsonNode items = node.get("items");
+        if (items != null && items.isArray() && !items.isEmpty()) {
+            compact.set("items", filterArray(items, this::compactLibraryBookItemNode));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactLibraryBookItemNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "title");
+        copyTextIfPresent(node, compact, "author");
+        copyTextIfPresent(node, compact, "publication");
+        copyTextIfPresent(node, compact, "callNumber");
+        copyTextIfPresent(node, compact, "location");
+        copyTextIfPresent(node, compact, "status");
+        return compact;
+    }
+
     private ObjectNode compactFacilityNode(JsonNode node) {
         ObjectNode compact = objectMapper.createObjectNode();
         copyTextIfPresent(node, compact, "name");
@@ -614,6 +651,28 @@ public class LlmChatService implements ChatService {
         JsonNode arguments = arguments(toolCall);
         JsonNode value = arguments.get(fieldName);
         return value == null || value.isNull() ? "" : value.asText("");
+    }
+
+    private Optional<Integer> optionalIntArgument(OpenAiToolCall toolCall, String fieldName) {
+        JsonNode value = arguments(toolCall).get(fieldName);
+        if (value == null || value.isNull()) {
+            return Optional.empty();
+        }
+        if (value.canConvertToInt()) {
+            return Optional.of(value.asInt());
+        }
+        if (value.isTextual()) {
+            String text = value.asText("").trim();
+            if (text.isEmpty()) {
+                return Optional.empty();
+            }
+            try {
+                return Optional.of(Integer.parseInt(text));
+            } catch (NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
     }
 
     private JsonNode arguments(OpenAiToolCall toolCall) {

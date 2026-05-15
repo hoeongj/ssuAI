@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.ssuai.domain.mcp.tool.CampusMcpTools;
 import com.ssuai.domain.mcp.tool.DormMcpTools;
+import com.ssuai.domain.mcp.tool.LibraryBookMcpTool;
 import com.ssuai.domain.mcp.tool.LibrarySeatMcpTool;
 import com.ssuai.domain.mcp.tool.MealMcpTools;
 
@@ -18,10 +19,11 @@ class McpServerConfig {
             MealMcpTools mealMcpTools,
             DormMcpTools dormMcpTools,
             CampusMcpTools campusMcpTools,
-            LibrarySeatMcpTool libraryMcpTool
+            LibrarySeatMcpTool libraryMcpTool,
+            LibraryBookMcpTool libraryBookMcpTool
     ) {
         return MethodToolCallbackProvider.builder()
-                .toolObjects(mealMcpTools, dormMcpTools, campusMcpTools, libraryMcpTool)
+                .toolObjects(mealMcpTools, dormMcpTools, campusMcpTools, libraryMcpTool, libraryBookMcpTool)
                 .build();
     }
 }

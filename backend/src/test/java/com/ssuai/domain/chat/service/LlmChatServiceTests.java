@@ -417,7 +417,10 @@ class LlmChatServiceTests {
                                 requiredStringSchema("query", "검색어. 비워두지 마세요.")),
                         canonicalTool("get_library_seat_status",
                                 "숭실대학교 중앙도서관의 좌석 현황을 층별로 조회합니다.",
-                                requiredIntegerSchema("floor", "도서관 층 코드 (-1, 1, 2, 3, 4, 5, 6)"))
+                                requiredIntegerSchema("floor", "도서관 층 코드 (-1, 1, 2, 3, 4, 5, 6)")),
+                        canonicalTool("search_library_book",
+                                "숭실대학교 중앙도서관 소장 도서를 키워드로 검색합니다.",
+                                requiredStringSchema("query", "검색어 (제목/저자/출판 키워드, 1~64자)"))
                 ),
                 null
         );
