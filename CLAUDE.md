@@ -7,12 +7,17 @@ Full project context: `docs/product.md`, `docs/architecture.md`,
 full document only when the task is broad or the relevant section is unclear.
 
 ## Your Role
-You are the **sole AI collaborator** on this project — architect, reviewer,
-and implementer. There used to be a Claude-designs / Codex-implements split,
-but the developer no longer has a Codex token. You now write production code
-directly, run verification, and open PRs yourself.
+The developer rotates between three AI agents — **claude1, claude2, codex** —
+based on which has tokens available at the moment. Only one agent works at a
+time; the others see prior state via `docs/handoff/latest.md`, in-repo task
+specs (`docs/tasks/`), `docs/dev-log.md`, and git history.
 
-Still apply senior-engineer judgement: for non-trivial features, propose the
+Whichever agent is active in the current session owns the **full cycle**
+for that session's work — architect, implementer, and reviewer. Don't wait
+for another agent to take a role; do the design, write the code, run the
+verification, and open the PR yourself.
+
+Apply senior-engineer judgement: for non-trivial features, propose the
 design (Goal / API / data flow / security / test plan) before writing code,
 and split large work into reviewable chunks. For small fixes, just implement.
 
@@ -172,6 +177,47 @@ work. The user will message you the result when they have it.
   `git status --short --branch`.
 - Do not auto-commit/push unfinished work on close-out alone; summarize
   changes and ask for explicit permission.
+
+## Session handoff to a different AI
+
+When the user signals they will continue this work in a different AI session
+— trigger phrases include "토큰 끝났어", "다른 AI로 갈게", "다른
+클로드로 이어갈게", "이제 codex로 할게", "claude2로 넘길게", or any
+phrase indicating an agent swap — run this routine in order without further
+prompting:
+
+1. **Git state snapshot** — `git status --short --branch`, and for the
+   current branch `git log --oneline origin/main..HEAD`. List
+   uncommitted/unpushed work and any open PRs (`gh pr list --state open
+   --author "@me"`). Ask the user with a single yes/no whether to commit
+   and push the listed in-progress work; if no, leave it alone.
+
+2. **Overwrite `docs/handoff/latest.md`** with the canonical handoff. The
+   doc replaces any prior dated handoff (delete those in the same commit;
+   git history preserves them). Required sections:
+   - **TL;DR** — 3-5 bullets, what changed this session
+   - **이번 세션 머지/푸시** — PR/commit table
+   - **열린 PR** — branch + waiting-on
+   - **외부 의존** — user-driven spikes, teammate replies, anything the
+     next agent must not poll for ([[feedback-user-will-notify]])
+   - **다음 세션 액션** — ordered, each item self-contained (no "see
+     above"); name the exact files/branches/PR numbers
+   - **사용자 컨텍스트** — preferences, deadlines, traps a fresh agent
+     must know (auto-merge policy, no-Claude-trailer policy, etc.)
+   - **보안 주의** — one-shot tokens, secrets, anything that must not be
+     logged or echoed
+
+3. **Next-AI opener block** — print a single fenced code block the user can
+   paste verbatim into the next AI's first turn. Must tell the next agent
+   to read `CLAUDE.md`, `docs/handoff/latest.md`, and `MEMORY.md` first,
+   run `git status --short --branch`, then proceed with action #1 of the
+   handoff doc. Include the current task ID, PR number, and branch name
+   so the next agent has top-of-mind context without re-deriving it.
+
+4. Commit and push the handoff doc itself (and any deleted prior handoff)
+   on a `chore/handoff-<date>` branch via PR, or directly to `main` if no
+   in-progress branch makes that cleaner. The handoff doc is metadata
+   only — auto-merge applies.
 - If the user explicitly asks to sync/push, commit and push only intended
   changes after relevant verification when feasible.
 
