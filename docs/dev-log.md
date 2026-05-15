@@ -5,6 +5,14 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: Task 14 PR 14b-2 — JWT infra. `io.jsonwebtoken:jjwt-*:0.13.0`
+  의존성 추가. `global/auth/` 패키지 신설: `JwtProperties` (secret/issuer/
+  access-ttl 15m/refresh-ttl 14d, secret 은 SSUAI_JWT_SECRET env var
+  override), `JwtTokenType` (ACCESS/REFRESH), `JwtClaims` record,
+  `JwtProvider.issueAccess/issueRefresh/parse`, `InvalidJwtException`.
+  Secret < 32 bytes 면 시작 실패. type mismatch / expired / tampered /
+  foreign-secret 다 거부. 테스트 7 케이스. `JwtAuthFilter` 와 인증
+  context 는 PR 14b-4 controller 와 함께.
 - 2026-05-16: Task 14 PR 14b-1 시작 — ssuAI 의 첫 user system. JPA +
   H2 의존성 추가 (`spring-boot-starter-data-jpa`, `com.h2database:h2`
   runtimeOnly). `application.yml` 에 datasource (in-memory H2,
