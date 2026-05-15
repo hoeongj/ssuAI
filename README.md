@@ -416,7 +416,7 @@ npx @modelcontextprotocol/inspector
 | [`docs/troubleshooting/`](docs/troubleshooting/) | 상세 회고 / postmortem |
 | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | 최상위 트러블슈팅 로그 (한국어, portfolio 회고용) |
 | [`docs/deploy/`](docs/deploy/) | 배포 파이프라인 진단 / 운영 노트 |
-| [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md) | AI 협업 워크플로우 (Claude 아키텍트 + Codex 구현자) |
+| [`CLAUDE.md`](CLAUDE.md) | AI 협업 워크플로우 (Claude Code 사용 규약) |
 
 <!-- markdownlint-enable MD013 MD060 -->
 
@@ -443,8 +443,8 @@ npx @modelcontextprotocol/inspector
 - **한 PR = 한 개념** — 변경 사항이 명확하게 review 되도록
 - **ADR** — load-bearing 결정은 모두 `docs/adr/` 에
 - **Dependabot + gitleaks** — 의존성·secret 자동 감시
-- **AI 협업 워크플로우** — Claude (아키텍트/리뷰어) + Codex (구현자).
-  자세한 hand-off 규약: [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md)
+- **AI 협업 워크플로우** — Claude Code 가 설계·구현·리뷰를 담당.
+  운영 규약: [`CLAUDE.md`](CLAUDE.md)
 
 ---
 
