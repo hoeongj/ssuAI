@@ -1,11 +1,23 @@
 # ADR 0013 — Library session capture: phantom-token adaptation to legacy proprietary auth
 
 - **Status**: Proposed (accepted when PR 13a [#80](https://github.com/hoeongj/ssuAI/pull/80) merges; revisit when PR 13c lands with the chosen capture mechanism)
-- **Date**: 2026-05-15
+- **Date**: 2026-05-15 (corrected 2026-05-15 evening after auth-mechanism reverse-engineering)
 - **Scope**: `backend/src/main/java/com/ssuai/domain/library/auth/**`,
   `backend/src/main/java/com/ssuai/domain/library/service/LibrarySeatService.java`,
   `backend/src/main/java/com/ssuai/global/exception/LibraryAuthRequiredException.java`,
   `docs/tasks/13-library-session-auth.md`, `docs/security.md`.
+
+> **Correction note (2026-05-15 evening):** earlier drafts of this ADR
+> referred to the captured credential as an "`ssotoken` cookie." A real
+> authenticated SPA capture against `oasis.ssu.ac.kr` proved the API
+> auth is the **`Pyxis-Auth-Token` request header**, not a cookie. The
+> `ssotoken` cookie only authenticates the Angular SPA shell and is
+> unrelated to Pyxis API auth. All references below now use
+> "Pyxis-Auth-Token" / "session token" terminology accordingly. The
+> architectural argument is unchanged — it was always about "an opaque
+> upstream auth credential," and what shape it takes (cookie vs
+> header) does not change the phantom-token boundary, the capture
+> mechanism set in §12, or the storage policy.
 
 ## Context
 
@@ -76,31 +88,33 @@ ssuAI is split into:
 [ LLM / chatbot ]  ──no token────►  [ MCP tool layer ]  ──no token────►  [ Service layer ]
                                                                                 │
                                                                                 ▼
-                                                                       [ LibrarySessionStore ]  ──Cookie: ssotoken──►  oasis.ssu.ac.kr
+                                                                       [ LibrarySessionStore ]  ──Pyxis-Auth-Token: <token>──►  oasis.ssu.ac.kr
                                                                                 ▲
                                                           [ LibrarySeatService.getSeatStatusForSession() ]
                                                                        reads token only here,
                                                                        only when connector mode = real
 ```
 
-The LLM context never contains the `ssotoken`. The MCP tool layer
+The LLM context never contains the captured token. The MCP tool layer
 (`LibrarySeatMcpTool`) never contains it. The `LibrarySeatService`
 asks `LibrarySessionStore` for it **inside** the same method that
-makes the upstream call, scoped to the local variable lifetime. This
-matches what 2026 phantom-token literature describes as "the agent
-never possesses long-lived user credentials."
+makes the upstream call, scoped to the local variable lifetime. The
+connector then injects it as a `Pyxis-Auth-Token` request header on
+the call to `/pyxis-api/1/seat-rooms`. This matches what 2026
+phantom-token literature describes as "the agent never possesses
+long-lived user credentials."
 
 ### 2. Capture mechanism — explicit user action, no password proxying
 
 PR 13a (`#80`) builds the backend store + 401 mapping. The mechanism
-that gets a captured `ssotoken` INTO the store is determined in PR 13c
-from spec §12. **At this ADR's date the choice is not finalized**, but
-the architectural constraint is fixed:
+that gets a captured `Pyxis-Auth-Token` INTO the store is determined
+in PR 13c from spec §12. **At this ADR's date the choice is not
+finalized**, but the architectural constraint is fixed:
 
 - The user authenticates on `oasis.ssu.ac.kr` directly. ssuAI is never
   on the page that touches the password.
-- Only the `ssotoken` value crosses ssuAI's trust boundary. No
-  username, no password, no third-party derivative.
+- Only the `Pyxis-Auth-Token` value crosses ssuAI's trust boundary.
+  No username, no password, no third-party derivative.
 - The capture endpoint (`POST /api/library/session`) is same-origin
   only, shape-validated (`^[A-Za-z0-9._\-+/=]+$`, 8-4096 chars).
 
@@ -114,7 +128,7 @@ PR 13c picks one; this ADR remains valid regardless of which.
 
 - Key: ssuAI session id (`HttpSession.getId()` for MVP; will migrate
   to `Student.studentId` after Task 14 lands ssuAI's own user system)
-- Value: raw `ssotoken` string
+- Value: raw `Pyxis-Auth-Token` string
 - TTL: defaults to 2 hours, configurable via
   `ssuai.library.session.ttl`. **Final TTL choice pending the
   spike documented in `scripts/spike-ssotoken-ttl.{sh,ps1}`** (see PR
@@ -149,7 +163,10 @@ so the frontend can branch precisely.
   Your Passwords — Here's How I Fixed It") cite this exact pattern as
   the anti-pattern.
 - **Popup + cookie read**: shown impossible by SOP spike (Task 13 §7
-  #1, resolved negative on 2026-05-15).
+  #1, resolved negative on 2026-05-15). Doubly moot since the API
+  doesn't even use the `ssotoken` cookie for auth — though the SOP
+  problem would still have killed any cross-origin storage read,
+  including localStorage where the SPA actually keeps the token.
 - **Local MCP server holding credentials** (a fashionable 2026 idea):
   fails ssuAI's mobile-first usage — most students ask "지금 4층
   자리 있어?" from their phone, not from a PC running a local server.
