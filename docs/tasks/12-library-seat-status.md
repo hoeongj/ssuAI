@@ -248,21 +248,20 @@ Manual verification after deploy:
 Two PRs, sequenced. Skip the multi-step hand-off framing — implement
 directly. Use internal `TaskCreate` to track sub-steps inside each PR.
 
-> **Status (2026-05-15)** — PR 1 is split into two slices because the
-> upstream library URL was not yet available when implementation
-> started:
+> **Status (2026-05-15)** —
 >
-> - **PR 1a (in flight, `feat/library-seat-mock-slice`)** — everything
->   that doesn't need the URL: enum, DTOs, connector interface, **mock
->   connector**, cache, service, controller, MCP tool, ADR 0012, full
->   test suite end-to-end against the mock. `ssuai.connector.library-seat`
->   defaults to `mock`; flipping to `real` will fail-fast until 1b
->   lands.
-> - **PR 1b (blocked on URL)** — `RealLibrarySeatConnector` (Jsoup,
->   timeouts, retry), pinned HTML fixtures under
->   `src/test/resources/library/`, `RealLibrarySeatConnectorHttpTests`
->   and `RealLibrarySeatConnectorParseTests`. Stop-and-flag conditions
->   in §8 still apply during 1b research.
+> - **PR 1a** (`feat/library-seat-mock-slice`, [#77](https://github.com/hoeongj/ssuAI/pull/77))
+>   shipped the mock end-to-end: enum, DTOs, connector interface, mock
+>   connector, cache, service, controller, MCP tool, ADR 0012, full test
+>   suite + frontend dashboard card. `ssuai.connector.library-seat`
+>   defaults to `mock`.
+> - **PR 1b** (real connector) is **subsumed by Task 13** —
+>   [`13-library-session-auth.md`](13-library-session-auth.md). Research
+>   on 2026-05-15 confirmed the upstream is fully auth-gated (Pyxis API
+>   behind login), triggering §8 stop-and-flag. The real connector now
+>   needs a session capture pipeline that Task 13 builds; it lands as
+>   Task 13 PR 13b.
+> - **PR 2** (frontend dashboard card) is already part of PR 1a.
 
 ### PR 1 — Backend slice (DTOs → connector → service → controller → MCP)
 
