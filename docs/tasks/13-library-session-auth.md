@@ -324,10 +324,17 @@ following happens:
   this same session plumbing, plus the action-tool guardrails listed in
   [`docs/vision.md`](../vision.md) §3 Layer 4. Don't add reservation
   logic here.
-- **u-SAINT integration (Task 14)** — same WebView-capture pattern,
-  different URL (`smartid.ssu.ac.kr` → `sToken`+`sIdno`), same backend
-  store shape. ADR 0013's pattern documentation should be written so
-  Task 14 mostly copies the diagram and swaps URLs.
+- **u-SAINT integration (Task 14)** — sibling Phase 3 task, but
+  **structurally different**. ssutoday's SmartID SSO flow gives us
+  `sToken`+`sIdno` as 1-shot identity-confirmation tokens; we throw
+  them away after a 2-phase saint scrape and issue ssuAI's own JWT.
+  Task 13 (library) is the opposite — its `ssotoken` is a long-lived
+  *data-access* session cookie that we must persist. The two tasks
+  share the `domain/auth/` package and the phantom-token *principle*
+  ([ADR 0013](../adr/0013-library-session-capture-pattern.md)) but
+  not the token-handling code. See
+  [`docs/tasks/14-usaint-session-auth.md`](14-usaint-session-auth.md) §2
+  for the side-by-side comparison.
 
 ## 12. Capture-mechanism decision (PR 13c blocker)
 

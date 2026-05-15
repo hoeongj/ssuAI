@@ -12,7 +12,26 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
   stop-and-flag 발동. spec 에 §12 "capture-mechanism decision" 추가하고
   A(manual paste) / B(extension) / C(bookmarklet) / D(u-SAINT 우선) /
   E(mock 유지) 5 안 정리. PR 13a (backend session store) 는 mechanism 과
-  독립이라 선행 진행.
+  독립이라 선행 진행. PR #80.
+- 2026-05-15: Task 14 spec — `docs/tasks/14-usaint-session-auth.md`.
+  ssutoday RN SSO-redirect 패턴의 web port. apiReturnUrl을 ssuAI
+  backend로 설정 → SmartID가 우리 도메인으로 302 → sToken+sIdno이
+  same-origin query param으로 도착 → SOP 우회 불필요. ssutoday
+  `AuthServiceImpl.uSaintAuth` 의 2-phase scrape (validation + portal
+  parse) verbatim 포팅 계획. ssuAI 최초의 user system (Student JPA +
+  JwtProvider). Identity-only MVP — realtime 학적 데이터는 Task 15+.
+  Critical spike: SmartID `apiReturnUrl` whitelist 여부 (없으면 §10
+  stop-and-flag). Task 13과 sibling Phase 3 task로 자리매김.
+- 2026-05-15: ADR 0013 — library session capture pattern. Phantom-token
+  원칙을 legacy proprietary auth (Pyxis, OAuth 미지원)에 어댑팅한 방식
+  문서화. MCP OAuth 2.1 spec / Manus Browser Operator / Bitwarden MCP /
+  ssutoday reference 인용. Token boundary는 connector 레이어로 한정
+  (LLM 절대 token 노출 안 됨), capture 메커니즘은 spec §12에서 user-
+  decision pending, TTL은 PR #81 spike 결과 후 확정.
+- 2026-05-15: Task 13 §7 #2 spike — `scripts/spike-ssotoken-ttl.{ps1,sh}`.
+  oasis ssotoken TTL 측정. env var로만 토큰 받음, SHA-256 fingerprint만
+  로그, `*.log` gitignore. 결과는 PR 13c (manual capture flow) 의 영구
+  저장 정책 (in-memory vs AES-GCM persistent)을 결정. PR #81.
 - 2026-05-15: Task 12 backend mock slice. `LibraryFloor` enum, `LibrarySeatZone`/
   `LibrarySeatStatusResponse` DTO, `LibrarySeatConnector` 인터페이스 + 결정적
   `MockLibrarySeatConnector`, 30s TTL + single-flight 캐시 `LibrarySeatCache`,
