@@ -20,8 +20,13 @@ export function UserGreeting() {
 
   if (isAuthenticated && user) {
     return (
-      <p className="text-sm font-medium text-foreground">
-        안녕하세요, <span className="font-semibold">{user.name}</span> 학생
+      <p
+        className="max-w-[8rem] truncate text-sm font-medium text-foreground sm:max-w-[12rem]"
+        title={`안녕하세요, ${user.name} 학생`}
+      >
+        <span className="hidden sm:inline">안녕하세요, </span>
+        <span className="font-semibold">{user.name}</span>
+        <span className="hidden sm:inline"> 학생</span>
       </p>
     );
   }
@@ -31,7 +36,8 @@ export function UserGreeting() {
       href="/auth/login"
       className="text-sm font-medium text-primary underline-offset-4 hover:underline"
     >
-      유세인트로 로그인
+      <span className="hidden sm:inline">유세인트로 로그인</span>
+      <span className="sm:hidden">로그인</span>
     </Link>
   );
 }
