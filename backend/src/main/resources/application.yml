@@ -54,6 +54,7 @@ ssuai:
     meal: mock # mock | real
     dorm-meal: mock # mock | real
     library-seat: mock # mock | real
+    library-book: mock # mock | real
     chat: ${SSUAI_CONNECTOR_CHAT:mock} # mock | llm
   library:
     seat:
@@ -61,6 +62,15 @@ ssuai:
       # before walking over, long enough that the library page is not
       # hammered at chat-message frequency.
       cache-ttl: 30s
+    book:
+      # Per-(query,page,size) cache TTL. Longer than seat (which is volatile);
+      # checkout state shifts on the order of minutes, not seconds.
+      cache-ttl: 60s
+      # Pyxis JSON search API base URL — anonymous GET, no auth header.
+      base-url: ${SSUAI_LIBRARY_BOOK_BASE_URL:https://oasis.ssu.ac.kr}
+      # Collection 2 = central library combined catalog (spike-confirmed).
+      collection-id: 2
+      timeout: 5s
   chat:
     llm:
       max-tokens: ${SSUAI_LLM_MAX_TOKENS:400}
