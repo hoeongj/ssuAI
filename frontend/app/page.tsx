@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DormWeeklyCard } from "@/components/dorm/DormWeeklyCard";
 import { FacilitySearchCard } from "@/components/facility/FacilitySearchCard";
+import { LibrarySeatCard } from "@/components/library/LibrarySeatCard";
 import { TodayMealCard } from "@/components/meal/TodayMealCard";
 import { WeeklyMealCard } from "@/components/meal/WeeklyMealCard";
 import { buttonVariants } from "@/components/ui/button";
@@ -25,6 +26,7 @@ export default function Home() {
         <FacilitySearchCard />
         <WeeklyMealCard />
         <DormWeeklyCard />
+        <LibrarySeatCard />
       </section>
     </main>
   );

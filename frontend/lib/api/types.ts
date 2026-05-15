@@ -76,6 +76,26 @@ export interface CampusFacilityListResponse {
   facilities: CampusFacility[];
 }
 
+export type LibraryFloorCode = -1 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface LibrarySeatZone {
+  label: string;
+  total: number;
+  available: number;
+  seatIds: string[];
+}
+
+export interface LibrarySeatStatusResponse {
+  floor: LibraryFloorCode;
+  floorLabel: string;
+  totalSeats: number;
+  availableSeats: number;
+  reservedSeats: number;
+  outOfServiceSeats: number;
+  fetchedAt: string;
+  zones: LibrarySeatZone[];
+}
+
 export interface ChatRequest {
   conversationId?: string;
   message: string;
