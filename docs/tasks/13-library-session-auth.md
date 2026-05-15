@@ -5,6 +5,24 @@
 > unlocks the real-data path and becomes Phase 3's first concrete
 > milestone.
 
+> **Status (2026-05-15, session 2):**
+>
+> - **§7 #1 spike resolved — negative.** Browser same-origin policy
+>   blocks the parent (`ssuai.vercel.app`) from reading
+>   `popup.document.cookie` or `popup.location.href` after the user logs
+>   in on `oasis.ssu.ac.kr`. `window.postMessage` is also unusable
+>   because we cannot inject a listener into oasis's page. ssutoday's
+>   pattern works only because React Native WebView (native) does not
+>   enforce web SOP — pure-web ssuAI does. See §7 #1 for the verdict and
+>   §10 for the triggered stop-and-flag.
+> - **PR 13a (backend session store + 401 mapping) is unblocked** and
+>   in progress on branch `feat/library-session-store`. The capture
+>   mechanism choice (popup / paste / extension / pivot) only affects
+>   PR 13c's frontend orchestration; the backend store shape and 401
+>   contract are mechanism-agnostic.
+> - **PR 13c (frontend capture flow) is blocked** pending user decision
+>   on the popup alternative. Options on the table — see §12.
+
 ## 1. Goal / Scope / Non-goals
 
 ### Goal
@@ -201,17 +219,15 @@ domain depending on coupling.
 
 ## 7. Open questions (resolve during implementation, not now)
 
-1. **Cookie SameSite + same-origin reads.** Whether the parent window
-   can read `document.cookie` on the popup depends on browser policy. If
-   blocked, fall back to `window.postMessage` from a small bootstrap
-   script we control via `oasis.ssu.ac.kr/library-services/...` — but
-   we don't control oasis. The realistic fallback is: ask the user to
-   paste the cookie after login (ugly), OR proxy the login through our
-   own backend by recreating the POST. The latter brings the password
-   back to ssuAI — rejected. **First experiment**: verify whether the
-   popup's cookie is readable by the opener via `popup.document.cookie`
-   on `oasis.ssu.ac.kr`'s own page after login. Browsers may block this
-   when origin-policy treats it as third-party.
+1. **Cookie SameSite + same-origin reads — RESOLVED 2026-05-15, NEGATIVE.**
+   Spike on 2026-05-15 confirmed: browser SOP prevents
+   `ssuai.vercel.app` from reading any property of an
+   `oasis.ssu.ac.kr` popup post-login. `popup.document.cookie` and
+   `popup.location.href` both throw `SecurityError`; `postMessage` is
+   one-way only and we have no way to inject a sender into oasis's
+   page. The native-WebView pattern from ssutoday (React Native) does
+   not translate to a pure-web frontend. This triggers §10's first
+   stop-and-flag case — see §12 for the decision options.
 2. **`ssotoken` lifetime.** Pyxis sessions are typically rolling. We
    need to know: TTL? Refresh mechanism? What happens on 401 from
    downstream API — auto-refresh by re-popping the login? Decide once we
@@ -312,3 +328,27 @@ following happens:
   different URL (`smartid.ssu.ac.kr` → `sToken`+`sIdno`), same backend
   store shape. ADR 0013's pattern documentation should be written so
   Task 14 mostly copies the diagram and swaps URLs.
+
+## 12. Capture-mechanism decision (PR 13c blocker)
+
+§7 #1 spike killed the cross-origin popup-cookie-read approach. PR 13c
+cannot proceed until the user picks one of the following:
+
+| # | Option | UX | Backend shape | Portfolio story | Risk |
+|---|--------|----|---------------|-----------------|------|
+| A | **Manual paste UI** — user logs in at oasis tab, copies `ssotoken` cookie value from devtools, pastes into ssuAI modal | Ugly. 5-step instruction screen with screenshot. Once per ~2h. | Identical to popup design — `POST /api/library/session { token }`. | Honest about the web-platform constraint; documents *why* native apps can do this and webs cannot. ADR-worthy. | Low. Works today. |
+| B | **Browser extension** (Chromium) — extension has cross-origin cookie access; reads `ssotoken` after user logs in, POSTs to ssuAI backend | One-click after install. Install flow itself is friction. | Same as A. | Strong portfolio piece if extension is in scope. Out of single-student MVP budget. | High build cost. Store review for Manifest V3. |
+| C | **Bookmarklet** — user adds a JS bookmarklet to their bookmarks bar; clicks it while on `oasis.ssu.ac.kr` post-login. Runs in oasis origin, reads `document.cookie`, POSTs to ssuAI backend (CORS allow-listed). | Moderate. One-time install of bookmarklet. Per-session one click on oasis tab. | Same as A. Adds CORS allowlist for `oasis.ssu.ac.kr` origin → `api.ssumcp.duckdns.org/api/library/session`. | Demonstrates SOP awareness + a working workaround. Reasonable portfolio talking point. | CSP on oasis may block; verify before committing. |
+| D | **Pivot to u-SAINT first (Task 14)** | n/a for library | n/a — different connector | u-SAINT uses SmartID SSO redirect with `sToken`+`sIdno` in the URL. Redirect URL *is* readable cross-origin if you control the apiReturnUrl. Could be a ssuAI-owned `/api/saint/sso-callback` endpoint that the SSO redirects to. | Same as ssutoday's approach, ported to web. | Library stays on mock indefinitely. |
+| E | **Stay on mock indefinitely** — accept that the read-only library data plane stays mock-only; document the SOP wall as the reason | No real data | Backend session store still built (PR 13a) for u-SAINT reuse. PR 13b/13c shelved. | Smallest scope. Weakest data story. | None technical. |
+
+**Author recommendation:** **A (manual paste)** as the shipped MVP +
+**D (pivot to u-SAINT)** for the next active task. Rationale: A is
+~half a day of work, demonstrates the full session-store + auth-aware
+pipeline end-to-end against a real upstream, and converts cleanly into
+B or C later. D unblocks `saint.ssu.ac.kr` data (transcripts, schedule)
+which is a richer Phase 3 demo than seat counts. C is tempting but
+oasis's CSP needs verifying first; if CSP blocks the bookmarklet fetch,
+that day is wasted.
+
+This decision needs user input — do not proceed past PR 13a without it.

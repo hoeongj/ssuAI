@@ -11,6 +11,7 @@ public enum ErrorCode {
     CONNECTOR_PARSE_ERROR(HttpStatus.BAD_GATEWAY, "외부 서비스 응답을 해석하지 못했습니다."),
     CONNECTOR_ERROR(HttpStatus.BAD_GATEWAY, "외부 서비스 처리 중 오류가 발생했습니다."),
     CHAT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 응답 기능을 일시적으로 사용할 수 없습니다."),
+    LIBRARY_SESSION_REQUIRED(HttpStatus.UNAUTHORIZED, "도서관 로그인이 필요합니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
 

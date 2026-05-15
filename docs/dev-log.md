@@ -5,6 +5,14 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-15
 
+- 2026-05-15: Task 13 §7 #1 spike resolved — **negative**. 브라우저 SOP가
+  `ssuai.vercel.app` → `oasis.ssu.ac.kr` popup 의 `document.cookie`/
+  `location.href` 모두 차단, `postMessage` 도 oasis 쪽에 listener 못 심어
+  무용. ssutoday 의 RN WebView 패턴은 web 에서 안 됨. Task 13 §10 첫 번째
+  stop-and-flag 발동. spec 에 §12 "capture-mechanism decision" 추가하고
+  A(manual paste) / B(extension) / C(bookmarklet) / D(u-SAINT 우선) /
+  E(mock 유지) 5 안 정리. PR 13a (backend session store) 는 mechanism 과
+  독립이라 선행 진행.
 - 2026-05-15: Task 12 backend mock slice. `LibraryFloor` enum, `LibrarySeatZone`/
   `LibrarySeatStatusResponse` DTO, `LibrarySeatConnector` 인터페이스 + 결정적
   `MockLibrarySeatConnector`, 30s TTL + single-flight 캐시 `LibrarySeatCache`,

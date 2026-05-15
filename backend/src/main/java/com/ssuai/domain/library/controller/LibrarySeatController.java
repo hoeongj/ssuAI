@@ -3,6 +3,7 @@ package com.ssuai.domain.library.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,9 +34,11 @@ public class LibrarySeatController {
                     required = true,
                     example = "4"
             )
-            int floor
+            int floor,
+            HttpServletRequest request
     ) {
         LibraryFloor target = LibraryFloor.fromCode(floor);
-        return ApiResponse.success(libraryService.getSeatStatus(target));
+        String sessionKey = request.getSession().getId();
+        return ApiResponse.success(libraryService.getSeatStatusForSession(target, sessionKey));
     }
 }
