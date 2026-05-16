@@ -9,7 +9,7 @@ export function WeeklyMealSkeleton({ dayCount = 7 }: WeeklyMealSkeletonProps) {
     <div className="space-y-4">
       <div className="grid gap-2 sm:grid-cols-5">
         {Array.from({ length: dayCount }).map((_, index) => (
-          <Skeleton key={index} className="h-24 w-full" />
+          <Skeleton key={`skeleton-day-${index}`} className="h-24 w-full" />
         ))}
       </div>
       <Skeleton className="h-36 w-full" />

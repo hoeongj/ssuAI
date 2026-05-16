@@ -105,9 +105,11 @@ public class LlmChatService implements ChatService {
                말해. 다른 사이트 링크나 외부 추정 정보를 만들지 마.
 
             범위 밖 안내:
-            - LMS 과제, 수강신청, 졸업요건 같은 시스템 연동은 아직 지원 안 함.
-            - get_my_schedule / get_my_grades 는 인증된 chat 세션에서만 동작.
-              로그인 안 한 사용자에게는 "u-SAINT 로그인이 필요합니다" 안내.
+            - 수강신청, 졸업요건 같은 시스템 연동은 아직 지원 안 함.
+            - get_my_schedule / get_my_grades / get_my_assignments 는 인증된 chat 세션에서만 동작.
+              u-SAINT 또는 LMS 로그인이 안 된 사용자에게는 각 로그인 필요 안내.
+            - get_my_library_loans 는 도서관 세션 연동이 된 chat 세션에서만 동작.
+              연동 안 된 사용자에게는 도서관 좌석 카드의 "도서관 연동" 버튼 안내.
             - 비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 요구하지도 받지도
               마. 사용자가 입력하면 저장/반복하지 말고 지우라고 안내해.
             """;
@@ -116,7 +118,9 @@ public class LlmChatService implements ChatService {
             "아직은 그 정보는 지원하지 않아요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색, 그리고 (로그인된 경우) 본인 시간표·성적·LMS 과제·도서관 대출 현황을 도와줄 수 있어요.";
 
     private static final String SECRET_GUIDANCE =
-            "비밀번호, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
+            "비밀번호, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. "
+                    + "학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색, 그리고 "
+                    + "(로그인된 경우) 본인 시간표·성적·LMS 과제·도서관 대출 현황을 도와줄 수 있어요.";
 
     private static final String SAINT_SESSION_GUIDANCE =
             "u-SAINT 로그인이 필요한 정보예요. 먼저 SmartID 로 로그인하고 다시 물어봐 주세요.";

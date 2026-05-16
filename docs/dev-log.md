@@ -3,6 +3,11 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-17 (새벽 — 자동화 세션)
+
+- 2026-05-17: **MCP 서버 완성 — 10개 tool 전부 구현**. Task 13 (library real connector + loans) PR #139 머지. `get_my_library_loans` MCP tool 추가 — `LibraryToolContext` ThreadLocal + `LibraryLoansService` 직접 dispatch (SSE loopback 우회 패턴). `ChatController` 에서 `LibraryToolContext.withSessionKey()` 바인딩. 392 tests 통과. Phase 4 (도서관 좌석 자동 예약 에이전트) 대기.
+- 2026-05-17: **코드 최적화 일괄 정리**. `LlmChatService` 시스템 프롬프트 "LMS 과제 미지원" 오류 문구 수정 (이미 지원 중). `SECRET_GUIDANCE` 범위 설명 갱신. `WeeklyMealSkeleton` React key anti-pattern 수정 (index → 'skeleton-day-N'). `docs/mcp-tools.md` 10개 tool 기준 전면 개정.
+
 ## 2026-05-17
 
 - 2026-05-17: **Task 16 시간표 multi-term nav 확장 + bug fix**. 사용자
