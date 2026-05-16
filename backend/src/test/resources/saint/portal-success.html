@@ -2,17 +2,70 @@
 <html>
 <head><meta charset="utf-8"><title>SSU 학사정보</title></head>
 <body>
-<!-- PII-scrubbed copy of the saint /irj/portal dashboard. Real cell order
-     observed by ssutoday: 학번 / 이름 / 소속(학부) / 학적상태. -->
+<!-- PII-scrubbed copy of the saint /irj/portal dashboard (Soongsil portal,
+     captured 2026-05-16). Real shape: a `.main_box09` card whose `.box_top`
+     greets the student by name and whose `<ul class="main_box09_con">`
+     holds 학번 / 소속 / 과정/학기 / 학년/학기 rows keyed by <dt>. The old
+     ssutoday `.main_box09 .main_box09_con` positional fixture (학번 / 이름
+     / 소속 / 학적상태) no longer matches the live portal. Placeholder
+     student id `20999999` + name `홍길동` only; never insert a real student
+     id or name (docs/security.md §4). -->
 <div class="main_box09">
-  <div class="main_box09_tit">학번</div>
-  <div class="main_box09_con">20231234</div>
-  <div class="main_box09_tit">이름</div>
-  <div class="main_box09_con">홍길동</div>
-  <div class="main_box09_tit">소속</div>
-  <div class="main_box09_con">컴퓨터학부</div>
-  <div class="main_box09_tit">학적상태</div>
-  <div class="main_box09_con">재학</div>
+  <div class="box_top">
+    <p class="main_title">
+      <span>홍길동님 환영합니다.</span>
+    </p>
+    <p class="access_text">
+      최종접속 :
+      <span>2000-01-01 00:00:00</span>
+      &nbsp;(IP
+      <span>0.0.0.0</span>)
+    </p>
+  </div>
+  <div class="main_box09_con_w">
+    <ul class="main_box09_con">
+      <li>
+        <dl>
+          <dt>학번</dt>
+          <dd>
+            <a href="javascript:;" class="font_col02">
+              <strong>20999999</strong>
+            </a>
+          </dd>
+        </dl>
+      </li>
+      <li>
+        <dl>
+          <dt>소속</dt>
+          <dd>
+            <a href="javascript:;" class="font_col02">
+              <strong>컴퓨터학부</strong>
+            </a>
+          </dd>
+        </dl>
+      </li>
+      <li>
+        <dl>
+          <dt>과정/학기</dt>
+          <dd>
+            <a href="javascript:;" class="font_col02">
+              <strong>학사과정 재학</strong>
+            </a>
+          </dd>
+        </dl>
+      </li>
+      <li>
+        <dl>
+          <dt>학년/학기</dt>
+          <dd>
+            <a href="javascript:;" class="font_col02">
+              <strong>3학년:5학기</strong>
+            </a>
+          </dd>
+        </dl>
+      </li>
+    </ul>
+  </div>
 </div>
 </body>
 </html>

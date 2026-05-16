@@ -89,12 +89,13 @@ class SaintSsoServiceTests {
 
         UsaintAuthResult result = service.authenticate("sToken-one-shot", "20231234");
 
-        assertThat(result.studentId()).isEqualTo("20231234");
+        assertThat(result.studentId()).isEqualTo("20999999");
         assertThat(result.name()).isEqualTo("홍길동");
         assertThat(result.major()).isEqualTo("컴퓨터학부");
-        assertThat(result.enrollmentStatus()).isEqualTo("재학");
-        assertThat(sessionStore.cookies("20231234"))
-                .as("phase 1 portal cookies should be persisted to the session store")
+        assertThat(result.enrollmentStatus()).isEqualTo("학사과정 재학");
+        assertThat(sessionStore.cookies("20999999"))
+                .as("phase 1 portal cookies should be persisted under the portal-confirmed "
+                        + "studentId (sIdno can disagree with the authoritative HTML id)")
                 .hasValueSatisfying(cookies -> assertThat(cookies.rawCookieHeader())
                         .isEqualTo("MYSAPSSO2=portal-session-abc; JSESSIONID=jsess-xyz"));
         mockServer.verify();
@@ -150,9 +151,30 @@ class SaintSsoServiceTests {
 
         assertThatThrownBy(() -> service.authenticate("token", "20231234"))
                 .isInstanceOf(SaintPortalUnavailableException.class)
-                .hasMessageContaining("missing identity cells");
+                .hasMessageContaining("missing identity rows");
         assertThat(sessionStore.size())
                 .as("no cookies should be persisted when portal parse fails")
+                .isZero();
+    }
+
+    @Test
+    void phase2PortalParseFailsWhenGreetingNameIsMissing() {
+        HttpHeaders phase1Headers = new HttpHeaders();
+        phase1Headers.setContentType(TEXT_HTML_UTF8);
+        phase1Headers.add(HttpHeaders.SET_COOKIE, "MYSAPSSO2=cookie; Path=/");
+
+        mockServer.expect(requestTo(phase1Uri("token", "20231234")))
+                .andRespond(withSuccess(loadFixture("saint/phase1-success.html"),
+                        TEXT_HTML_UTF8).headers(phase1Headers));
+        mockServer.expect(requestTo(PORTAL_URL))
+                .andRespond(withSuccess(loadFixture("saint/portal-missing-name.html"),
+                        TEXT_HTML_UTF8));
+
+        assertThatThrownBy(() -> service.authenticate("token", "20231234"))
+                .isInstanceOf(SaintPortalUnavailableException.class)
+                .hasMessageContaining("missing name element");
+        assertThat(sessionStore.size())
+                .as("no cookies should be persisted when the name greeting is missing")
                 .isZero();
     }
 

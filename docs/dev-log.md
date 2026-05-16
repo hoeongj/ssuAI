@@ -5,6 +5,31 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: SmartID prod end-to-end 첫 검증 → portal HTML parser
+  실패로 두 갈래 prod incident 해소. (1) PR #110 의 fail-fast 가
+  prod 에서 발동 — `ssuai-backend-config` ConfigMap 에 `SSUAI_API_BASE_URL`
+  이 없어 새 pod CrashLoopBackOff. `kubectl patch configmap` 한 줄로
+  값 주입 후 rollout restart, prod 살아남. (2) SmartID/phase1 통과
+  후 phase 2 portal HTML 의 selector `.main_box09 .main_box09_con`
+  가 0 cell 매치 → `portal_unavailable` 로 로그인 실패. 사용자
+  본인 브라우저로 portal 검사한 결과, ssutoday 옛 fixture (학번/이름/
+  소속/학적상태 4개 `<div>` 셀) 와 달리 실제 portal 은 `.main_box09 .box_top
+  .main_title span` 에 "{이름}님 환영합니다." greeting + `<ul class="main_box09_con">
+  <li><dl><dt>키</dt><dd>값</dd></dl></li>` 4행 (학번/소속/과정·학기/학년·학기)
+  키-값 카드 구조였음. Task 14 §risks 가 이미 "portal HTML structure
+  has shifted significantly from ssutoday's parse anchors → need to
+  re-parse and pin new fixtures" 로 경고했지만 실 검증 전이라 미반영.
+  `SaintSsoService.parseIdentity` 를 positional `cells.get(i)` 에서
+  key-기반 `<dt>→<dd>` map 으로 재작성 (미래 row 추가/순서 변경에도
+  robust), 이름은 별도 `.main_title span` selector + "님 환영합니다."
+  suffix 스트립으로 추출. `portal-success.html` fixture 를 실제 markup
+  으로 교체 (학번/이름/IP/시간은 placeholder). `portal-missing-cells.html`
+  는 ul-누락 케이스로 의미 재정의, `portal-missing-name.html` 신규
+  추가. backend 258+ tests 그린. PR 별도. **운영 메모**: cluster 에
+  ArgoCD 도 helm 도 없는 단순 `kubectl apply` 운영이고 이미지 tag 가
+  `:latest` 라 PR 머지 → 다음 `kubectl rollout restart` 시점에 자동
+  prod 반영. 매뉴얼 ConfigMap patch 는 git 과 동기화 안 됨 (추후
+  GitOps 정리 필요, 별도 trouble entry).
 - 2026-05-16: Task 14 §7 #1 + §10 #1 spike **RESOLVED POSITIVE**.
   사용자가 실제 SmartID 로그인 → `apiReturnUrl=https://example.com`
   으로 302 되는 거 확인. `SaintSsoCallbackController` 가 의존하는

@@ -2,10 +2,19 @@
 <html>
 <head><meta charset="utf-8"></head>
 <body>
-<!-- Only one identity cell — simulates a portal HTML shape change the
-     parser must refuse rather than silently produce a blank student. -->
+<!-- The student-info `<ul class="main_box09_con">` is missing entirely —
+     simulates a portal shape change the parser must refuse rather than
+     silently produce a blank student. The greeting (.main_title span) is
+     intentionally present so this asserts the rows-missing branch alone. -->
 <div class="main_box09">
-  <div class="main_box09_con">20231234</div>
+  <div class="box_top">
+    <p class="main_title">
+      <span>홍길동님 환영합니다.</span>
+    </p>
+  </div>
+  <div class="main_box09_con_w">
+    <!-- ul.main_box09_con removed -->
+  </div>
 </div>
 </body>
 </html>

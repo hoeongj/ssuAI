@@ -31,6 +31,75 @@
 
 ---
 
+## 2026-05-16 — SmartID 로그인 prod 첫 검증: 두 갈래 장애 동시 해소
+
+- 맥락: PR #110 (Helm chart 에 `SSUAI_API_BASE_URL` 와이어링 + 빈 값
+  fail-fast) 머지 직후 SmartID 로그인을 prod 에서 처음 end-to-end
+  검증하다가, 별개의 두 incident 가 한 흐름에서 같이 터짐. 1)
+  ConfigMap 에 새 env 가 안 들어와 fail-fast 가 prod 에서 발동 →
+  pod CrashLoopBackOff. 2) ConfigMap fix 후 pod 가 살자, SmartID 통과
+  후 portal 응답 parsing 단계에서 selector mismatch → 로그인 화면이
+  `?error=portal_unavailable` 로 끝남.
+- 증상:
+  - 1차: `kubectl get configmap` 결과 SSUAI_API_BASE_URL 키 없음. 새
+    pod 가 `IllegalStateException: ssuai.auth.api-base-url (env:
+    SSUAI_API_BASE_URL) must be set` 로 RESTARTS 3+ CrashLoopBackOff.
+  - 2차: 로그에 `saint sso-callback portal unavailable: portal HTML
+    missing identity cells: got 0, expected 4`. SmartID 자체는 통과
+    (else `auth_failed`), phase 2 HTTP 200 (else `phase 2 http NNN`),
+    그러나 우리 selector `.main_box09 .main_box09_con` 가 0 cell 매치.
+- 원인:
+  - 1차: 운영 파이프라인이 ArgoCD/Helm 이 아니라 단순 `kubectl apply`
+    수동 운영이었음. PR 의 `deploy/charts/ssuai-backend/templates/configmap.yaml`
+    변경은 cluster 에 자동 반영되지 않음. PR #110 머지 + 컨테이너 이미지
+    `:latest` 자동 pull 로 새 코드만 들어왔는데, ConfigMap 은 옛 상태
+    그대로라 startup 시 fail-fast.
+  - 2차: u-SAINT portal HTML 구조가 ssutoday upstream fixture 시점
+    이후 큰 폭으로 바뀜. 옛 구조 = `<div class="main_box09"> <div
+    class="main_box09_con">value</div> × 4`. 실제 portal 2026-05 =
+    `<div class="main_box09"> <div class="box_top"><p class="main_title">
+    <span>{이름}님 환영합니다.</span></p> ...</div> <div
+    class="main_box09_con_w"><ul class="main_box09_con"> <li><dl>
+    <dt>학번|소속|과정/학기|학년/학기</dt><dd><strong>값</strong></dd>
+    </dl></li> × 4 </ul></div></div>`. Cell 의미도 다름 (이름이 카드
+    내부에서 빠지고 greeting 으로 이동). Task 14 §risks 가 이미 이
+    가능성을 적었지만 실 portal HTML 없이 작성한 fixture 가 그대로
+    테스트를 그린으로 유지해 prod 첫 검증까지 노출 안 됨.
+- 해결:
+  1. ConfigMap 즉시 patch: `kubectl patch configmap ssuai-backend-config
+     -n ssuai-prod --type merge -p '{"data":{"SSUAI_API_BASE_URL":"https://ssumcp.duckdns.org"}}'`
+     + rollout restart. (운영 파이프라인 정리는 별도 follow-up.)
+  2. `SaintSsoService.parseIdentity` 재작성: positional
+     `cells.get(0..3)` → key-based map. `.main_box09 ul.main_box09_con
+     li dl` 의 `<dt>`(키) → `<dd>`(값) 으로 build → "학번"/"소속"/
+     "과정/학기" 로 lookup. 향후 portal 이 row 순서 바꾸거나 추가해도
+     silent mis-assignment 방지.
+  3. 이름은 새 selector `.main_box09 .box_top .main_title span` 으로
+     별도 추출 + "님 환영합니다." suffix 스트립 (suffix 변형에 대비해
+     "님" 단독 trim 도 fallback).
+  4. `portal-success.html` fixture 를 실제 markup 으로 교체, 학번/
+     이름/IP/시간은 모두 placeholder (`20999999` / `홍길동` / `0.0.0.0`
+     / 더미 timestamp). `portal-missing-cells.html` 는 ul-누락 케이스로
+     의미 재정의, `portal-missing-name.html` 새 fixture 추가
+     (greeting span 누락 케이스). `SaintSsoServiceTests` 갱신.
+- 검증:
+  - backend 258+ tests 그린.
+  - prod ConfigMap patch + rollout restart 후 pod Ready ✓, env 잡힘 ✓.
+  - parser PR 머지 + 자동 :latest pull + rollout restart 후 사용자
+    실제 SmartID 로그인 end-to-end (대시보드 "안녕하세요, {이름} 학생"
+    표시) — **별도 follow-up**.
+- 포트폴리오 포인트:
+  - "정적 fixture 만으로 통과한 테스트가 라이브 응답과 mismatch 라는
+    걸 prod 첫 검증에서 잡고, 외부 HTML 구조 변경에 robust 한 key-기반
+    parse 로 전환." 그리고 "spec 의 §risks 에 미리 적어둔 경고 (ssutoday
+    parse anchors no longer match) 가 실측 시점에 실제로 발동, 미루지
+    말고 실 환경 검증을 일찍 했어야 한다는 회고."
+  - "ConfigMap 누락 + `:latest` 이미지 자동 pull 의 조합으로 prod 가
+    CrashLoopBackOff 됐을 때, fail-fast 로그 한 줄로 root cause 즉시
+    식별. fail-fast 가 prod 에서 의도대로 의미 있게 동작한 첫 사례."
+
+---
+
 ## 2026-05-14 — 학식 데이터 매 요청 라이브 스크래핑 → 주간 배치 캐시로 전환
 
 - 맥락: 라이브 챗봇이 동작하기 시작한 직후 데이터 흐름을 점검하다가, 학생이 "오늘 학식 뭐야?" 하고 물어볼 때마다 `RealMealConnector` 가 `soongguri.com` 으로 4~6번의 Jsoup HTTP GET 을 매번 fan-out 하고 있다는 걸 확인. 학식 메뉴는 학교 측에서 주 1회 일괄 갱신되는데 호출은 매번 라이브였음.
