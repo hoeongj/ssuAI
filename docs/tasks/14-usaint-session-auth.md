@@ -246,6 +246,18 @@ user table. Previous work was all anonymous-public.
 2. **Portal cookie TTL after phase 2** — we throw the portal cookies
    away after parsing identity, so this only matters for *future*
    realtime-data tools (Task 15+). Document but do not solve here.
+   **Update 2026-05-16 (post prod live)**: the assumption that Phase 2
+   HTML carries 학번/이름/소속/학적 in one inline page turned out wrong.
+   `/irj/portal` is a **SAP NetWeaver frameset wrapper**: only `<span
+   class="top_user">{이름}님 접속을 환영합니다.</span>` greeting + JS
+   `LogonUid` live on the wrapper itself. 소속/학적/학년 카드는 모두
+   `<iframe id="contentAreaFrame">` 안쪽에서 lazy load. Task 14 final
+   shape: 학번 = `sIdno` trust (phase 1 success marker passed + portal
+   session cookie issued by saint proves sIdno = the actual student),
+   이름 = `.top_user` greeting의 ordered suffix-strip
+   (`["님 접속을 환영합니다.", "님 환영합니다.", "님"]`), major/
+   enrollmentStatus = `null`. The deep iframe endpoints are Task 16's
+   problem and need their own spike + fixtures.
 3. **Korean major mapping** — ssutoday hardcodes the supported
    majors (`컴퓨터학부` → `cse`, …) and rejects others. For ssuAI we
    should be more permissive — store the raw major string, do not
@@ -342,6 +354,14 @@ following happens:
 - saint.ssu.ac.kr portal HTML structure has shifted significantly
   from ssutoday's parse anchors (no `main_box09` etc.) → need to
   re-parse and pin new fixtures.
+  **PARTIALLY FIRED 2026-05-16**: ssutoday's `.main_box09 .main_box09_con`
+  positional cells matched **0** on the real portal. PR #112 rewrote
+  parser to a key-based `<dt>→<dd>` map (still wrong target — that
+  markup lives inside the iframe, not the wrapper); PR #113 rewrote
+  again to read `.top_user` greeting + sIdno trust (correct for the
+  wrapper). Pinned fixtures: `portal-success.html`, `portal-missing-name.html`,
+  `portal-greeting-unknown-suffix.html` — all `홍길동`/`20999999`/dummy
+  IP/timestamp placeholders.
 - 학번 (`sIdno`) appears in HTML in a way that suggests it can be
   spoofed without SmartID validation → trust the saint response,
   not the query string, for identity. Note this in ADR.
@@ -382,3 +402,55 @@ ssuAI's first authenticated user system lands in Task 14. Task 13's
 `LibrarySessionStore` will eventually re-key from `HttpSession.getId()`
 to `Student.studentId` once Task 14 ships — that migration is a
 follow-up, not blocking.
+
+## 13. Prod-live retrospective (2026-05-16)
+
+Task 14 went prod-live on 2026-05-16 over four PRs (#112, #113, #114,
+#116). Two layers tripped beyond the original §10 stop-and-flag list:
+
+### Cross-site cookie auth needs two attributes, not one
+
+ssuAI runs frontend on `https://ssuai.vercel.app` (Vercel) and backend
+on `https://ssumcp.duckdns.org` (k3s). The refresh-cookie + access-JWT
+handshake is therefore **cross-site**, and Chromium-class browsers
+require BOTH of the following to be in place:
+
+1. `Set-Cookie: …; SameSite=None; Secure` on the refresh cookie
+   (so the cookie is **sent** with cross-site POST `/api/auth/refresh`).
+   PR #114 fixed this — `application-prod.yml` adds
+   `refresh-cookie.same-site: None`. The original spec §9 said
+   `SameSite=Lax`, which only works when the frontend lives on the
+   same registrable domain as the backend.
+2. `Access-Control-Allow-Credentials: true` on the response (so the
+   browser **exposes the response body to JS**) — even when the
+   response is 200 OK and `Set-Cookie` succeeds, the browser silently
+   blocks `await response.json()` if this header is missing.
+   PR #116 fixed this — `ApiCorsDefaults.allowCredentials(true)`.
+   Requires `allowedOrigins` to be an **explicit origin** (not `*`)
+   for the Spring `CorsConfiguration` validator to accept the
+   combination, which we already had.
+
+Both must be present. The intermediate state (PR #114 only) was the
+worst kind of broken: 200 OK in DevTools, cookie stored, but frontend
+silently catches `INVALID_ENVELOPE` and tells the user "세션 갱신
+실패". Backend log shows nothing because the request did succeed.
+See `TROUBLESHOOTING.md` 2026-05-16 entry for the debugging trail.
+
+### Portal HTML is a frameset wrapper, not a single page
+
+See §7 #2 update. The student-data cards Task 14 originally planned
+to harvest (소속/학적/학년) live inside an iframe and are not
+reachable through `/irj/portal` alone. Task 14 ships identity-only
+(학번 + 이름) with major/enrollmentStatus as `null`. Task 16 picks up
+the iframe-deep-endpoint work.
+
+### Spec-fixture-reality drift
+
+Task 14 §10 stop-and-flag #2 warned about this exact class of bug
+("portal HTML structure has shifted from ssutoday's parse anchors")
+but the original fixture (`portal-success.html`) was a synthetic
+shape based on the spec, not a real captured response. The synthetic
+fixture made all tests green even though the parser couldn't read the
+real portal. Lesson: fixtures for external integrations must be
+**captured from real responses** (with PII scrubbed) before the parser
+is considered tested. Followed in PR #113's new fixture set.

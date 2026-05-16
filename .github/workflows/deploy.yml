@@ -1,0 +1,68 @@
+name: Deploy
+
+# Auto-deploy to the k3s prod cluster after the image-build job in CI
+# finishes successfully on main. Runs `kubectl set image` against the
+# Deployment in ssuai-prod with the commit SHA tag the image-build step
+# just pushed to ghcr.io.
+#
+# Setup (one-time, manual): add a base64-encoded kubeconfig as the
+# repository secret `KUBE_CONFIG`. See deploy/README.md §GitHub Actions
+# deploy for the full procedure. Without the secret the job runs but
+# becomes a no-op (it logs a skip notice and exits 0), so this workflow
+# is safe to merge before the secret is provisioned.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: kubectl set image on ssuai-prod
+    runs-on: ubuntu-latest
+    # Only run if the triggering CI run actually succeeded — workflow_run
+    # fires on success AND failure by default.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    steps:
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+
+      - name: Deploy (or skip if KUBE_CONFIG is unset)
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          IMAGE_SHA: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/ssuai-backend
+        run: |
+          set -euo pipefail
+
+          if [ -z "${KUBE_CONFIG}" ]; then
+            echo "::notice::KUBE_CONFIG secret is not set; skipping deploy."
+            echo "::notice::See deploy/README.md §GitHub Actions deploy to enable."
+            exit 0
+          fi
+
+          mkdir -p "$HOME/.kube"
+          echo "${KUBE_CONFIG}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+          IMAGE="${IMAGE_REPO}:sha-${IMAGE_SHA}"
+          echo "Setting image to ${IMAGE}"
+          kubectl set image deployment/ssuai-backend \
+            "backend=${IMAGE}" \
+            -n ssuai-prod
+
+          echo "Waiting for rollout (up to 6 minutes; ARM64 image pulls are slow)"
+          kubectl rollout status deployment/ssuai-backend \
+            -n ssuai-prod \
+            --timeout=360s
+
+          echo "Current image:"
+          kubectl get pod -n ssuai-prod \
+            -o jsonpath='{.items[*].spec.containers[*].image}'
+          echo

@@ -88,10 +88,33 @@ Reference points to start from:
   under `/sap/bc/webdynpro/sap/`. These need a real session capture to
   enumerate.
 
+**Update 2026-05-16 (post Task 14 prod-live)**: `/irj/portal` is a
+**SAP NetWeaver frameset wrapper**. Only `<span class="top_user">`
+greeting + JS `LogonUid` live on the wrapper. 학적/소속/시간표/성적
+모두 `<iframe id="contentAreaFrame">` 안쪽에서 lazy load. This means:
+
+- PR 16a's spike must **drill into the iframe** before capturing URLs.
+  In a logged-in browser, open DevTools → Application → Frames, locate
+  the contentAreaFrame, and use **Ctrl+U on the iframe URL directly**
+  (not on `/irj/portal`). See `MEMORY.md` /
+  `learning-browser-view-source-vs-devtools.md` for the F12-vs-Ctrl+U
+  pitfall — F12 Elements panel composites all frames into one tree,
+  obscuring the wrapper-vs-iframe boundary.
+- Expect URLs of shape `/irj/servlet/prt/portal/prtroot/...` or
+  `/sap/bc/webdynpro/sap/...` for the deep endpoints. The fixture
+  capture must record both the exact URL **and** the iframe src that
+  loaded it, since the iframe URL itself encodes navigation state.
+- Cookies needed for the deep fetch are the same set Phase 1 already
+  collects (the `SaintSessionStore` in PR 16a stores precisely those).
+  No new auth round-trip per tool call.
+
 PR 16a includes a **30-min manual spike**: log into u-SAINT with a test
-account, navigate to 시간표 + 성적, capture URLs + page HTML, scrub PII
-(replace 학번/이름/실 성적 with `20999999`/홍길동/placeholder), commit
-fixtures under `backend/src/test/resources/fixtures/saint/`.
+account, navigate to 시간표 + 성적 **through the portal nav into the
+iframe**, capture iframe URLs + page HTML, scrub PII (replace 학번/이름/
+실 성적 with `20999999`/홍길동/placeholder), commit fixtures under
+`backend/src/test/resources/fixtures/saint/`. Capture the **real
+response**, not a synthetic shape — Task 14 §13 retrospective documents
+why synthetic fixtures cost three rewrites at prod-verify time.
 
 ## 4. Architecture
 
@@ -214,11 +237,19 @@ required in prod.
    include sensitive content. Tool result compaction
    (`LlmChatService.compactToolResponse`) must scrub or budget
    carefully — Sensitive data crosses ssuAI's trust boundary into the
-   LLM provider's prompt, which is a class-level concern. Decision:
-   for Task 16, allow schedule (relatively non-sensitive — "월요일 1교시
-   알고리즘") but **never** put grades in the LLM prompt. The chatbot
-   answers grade questions via tool **citations** only ("성적 페이지에
-   링크가 있어요" + N items count), without the content itself.
+   LLM provider's prompt, which is a class-level concern. **Decision
+   (locked-in)**:
+   - **Schedule**: allowed in LLM prompt with compact row format ("월
+     1교시 알고리즘 / 정보과학관 401"). 비교적 non-sensitive, 사용자가
+     "내일 1교시 뭐야?" 같은 질문에 직접 답을 받아야 가치 있음.
+   - **Grades**: **NEVER** in LLM prompt. Period. The chatbot answers
+     grade questions via tool **citations** only — "성적 페이지에서
+     N과목 확인 가능합니다" + a link, without the content itself.
+     `LlmChatService.compactToolResponse` 분기에서 `get_my_grades`
+     응답은 `{count: int, link: string}` 만 LLM 에 전달, 본문은 REST
+     controller path 로만 노출. 어떤 fallback / debug log / error
+     payload 에도 성적 값이 LLM 토큰 스트림에 들어가지 않도록 단위
+     테스트로 고정.
 
 ## 7. Implementation plan
 
@@ -306,6 +337,12 @@ Stop and surface to the user if any of the following happens:
 - u-SAINT HTML is delivered via WebDynpro and is structurally
   unparsable without simulating ViewState round-trips. In that case
   Playwright-based scraping replaces Jsoup; reassess scope.
+  **Updated likelihood 2026-05-16**: medium-to-high. Task 14 prod-live
+  confirmed `/irj/portal` is a SAP NetWeaver frameset, which is
+  WebDynpro-adjacent. The deep iframe endpoints may indeed require
+  ViewState round-trips. PR 16a spike is the gate — if the captured
+  HTML contains `wdr:client_data` / `<input name="sap-..." />` hidden
+  state fields, escalate to user before writing parsing code.
 - MCP tool argument passing for "current user id" is not actually
   supported by Spring AI's `@Tool` annotations the way Task 14 §6
   assumed. Interim: tool can only be called via the chat path that

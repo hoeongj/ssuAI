@@ -229,6 +229,75 @@ kubectl -n ssuai-prod get pods,svc,ingress
 Rollback is a git revert of the image-bump commit. ArgoCD reconciles back to
 the previous chart value.
 
+> **Reality check (2026-05-16)**: the live single-node k3s cluster
+> does **not** have ArgoCD or Image Updater installed; `helm` is also
+> not present on the VM. Steps 3-5 above describe the design intent,
+> not the current operational truth. Until that gap is closed, deploys
+> follow §7.1 (manual) or §7.2 (GitHub Actions auto-deploy).
+
+### 7.1 Manual deploy (current default)
+
+After CI's `image-build` job publishes `ghcr.io/hoeongj/ssuai-backend:sha-<full-sha>`:
+
+```bash
+SHA=$(git rev-parse origin/main)
+sudo kubectl set image deployment/ssuai-backend \
+  backend=ghcr.io/hoeongj/ssuai-backend:sha-${SHA} \
+  -n ssuai-prod
+
+sudo kubectl rollout status deployment ssuai-backend -n ssuai-prod --timeout=360s
+
+# Confirm new image is what is actually running:
+sudo kubectl get pod -n ssuai-prod \
+  -o jsonpath='{.items[*].spec.containers[*].image}'; echo
+```
+
+The Deployment manifest is currently pinned to `:latest` with
+`imagePullPolicy: IfNotPresent`, so a plain `rollout restart` does
+**not** pick up the new image — the explicit `set image` is required.
+
+### 7.2 GitHub Actions auto-deploy (opt-in)
+
+`.github/workflows/deploy.yml` runs `kubectl set image` automatically
+after CI succeeds on `main`. It is a no-op until the `KUBE_CONFIG`
+repository secret is provisioned, so merging the workflow alone changes
+nothing in prod.
+
+To enable:
+
+1. On the cluster machine, copy the kubeconfig and base64-encode it:
+
+   ```bash
+   sudo cat /etc/rancher/k3s/k3s.yaml | base64 -w 0 > /tmp/kubeconfig.b64
+   # If the server address inside is 127.0.0.1, replace it with the
+   # public DNS first:  sed 's#127.0.0.1#ssumcp.duckdns.org#' …
+   cat /tmp/kubeconfig.b64
+   ```
+
+   Make sure the embedded `server:` field is reachable from the public
+   internet (GitHub-hosted runners) — usually `https://ssumcp.duckdns.org:6443`
+   plus the matching port exposed via firewall.
+
+2. In GitHub → Repo Settings → Secrets and variables → Actions →
+   **New repository secret**:
+   - Name: `KUBE_CONFIG`
+   - Value: the base64 blob from step 1.
+
+3. Smoke test: push a no-op commit to `main` and watch the **Deploy**
+   workflow run. The first run after secret provisioning should
+   succeed; without the secret it logs a skip notice and exits 0.
+
+Security notes:
+
+- The kubeconfig grants whatever RBAC the embedded user has. Prefer
+  creating a scoped ServiceAccount (`patch deployments` on `ssuai-prod`
+  namespace only) and embedding *its* kubeconfig, not the cluster-admin
+  `k3s.yaml`.
+- Rotate `KUBE_CONFIG` whenever a maintainer leaves or the cluster CA
+  rotates.
+- The workflow uses `workflow_run` triggered by CI completion, so a
+  failed CI run does not deploy.
+
 ---
 
 ## 8. Verify production
