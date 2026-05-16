@@ -95,6 +95,11 @@ ssuai:
     sso-url: ${SSUAI_SAINT_SSO_URL:https://saint.ssu.ac.kr/webSSO/sso.jsp}
     portal-url: ${SSUAI_SAINT_PORTAL_URL:https://saint.ssu.ac.kr/irj/portal}
     timeout: 10s
+    schedule:
+      # Per-student timetable cache TTL (Task 16 spec §6 #5). Long enough that
+      # a chat user asking "내일 1교시" several times reuses one cumulative
+      # WDA7-iterate fetch, short enough that drop/add reflects within an hour.
+      cache-ttl: 1h
     session:
       # Encrypted-at-rest store of post-SSO portal cookies, consumed by
       # realtime u-SAINT data tools (Task 16). TTL kept shorter than the
