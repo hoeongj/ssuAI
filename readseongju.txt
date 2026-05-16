@@ -1,0 +1,120 @@
+===================================================
+  ssuAI — 자동화 세션 작업 기록 (2026-05-17 새벽)
+===================================================
+
+이 파일은 네가 자는 동안 진행된 작업 내역이야.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PR #139 머지 (feat/task-13-real-connector)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CI 전부 통과 확인 후 자동 머지.
+포함 내용:
+  - RealLibrarySeatConnector — 실제 oasis.ssu.ac.kr API 연동
+  - LibraryLoansConnector / RealLibraryLoansConnector — 대출 현황 API
+  - LibraryLoansService / LibraryLoansController — GET /api/library/loans
+  - LibraryToolContext — 도서관 세션 키 ThreadLocal 캐리어
+  - LibraryLoansMcpTool — get_my_library_loans MCP tool
+  - 프론트엔드 LibraryLoginModal, useLibrarySession, LibrarySeatCard CTA
+  - 테스트: RealLibrarySeat/Loans Connector, Service, Controller (27개)
+
+결과: MCP 서버 tool 10개 완성
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 코드 전체 리뷰 및 최적화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 백엔드 Java 파일 + 프론트엔드 TS/TSX 파일을 검토했어.
+발견된 이슈와 처리 결과:
+
+[수정됨 ✅]
+  1. LlmChatService.java — 시스템 프롬프트 오류
+     "LMS 과제, 수강신청, 졸업요건 같은 시스템 연동은 아직 지원 안 함"
+     → get_my_assignments 와 get_my_library_loans 는 이미 동작 중인데
+       여전히 미지원이라고 써져 있었음.
+     수정: "수강신청, 졸업요건 같은 시스템 연동은 아직 지원 안 함"으로 교체.
+     인증 필요 도구 목록도 모두 정확하게 업데이트.
+
+  2. LlmChatService.java — SECRET_GUIDANCE 범위 설명 오류
+     "지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요"
+     → 개인화 도구들(시간표, 성적, 과제, 대출)이 이미 지원되는데 빠져 있었음.
+     수정: 실제 지원 범위로 업데이트.
+
+  3. WeeklyMealSkeleton.tsx — React key anti-pattern
+     <Skeleton key={index} ...> → <Skeleton key={`skeleton-day-${index}`} ...>
+     index 를 key 로 쓰면 React가 DOM 재사용을 못 할 수 있어.
+     semantic한 string key로 교체.
+
+[검토 후 유지 🔍]
+  4. LlmChatService.java — looksLikeSecretInput()에서 "토큰"/"token" 차단
+     audit agent가 "라이브러리 토큰 입력을 막을 수 있다"고 지적했는데,
+     실제 Pyxis-Auth-Token 입력은 LibraryLoginModal (전용 UI)을 통해서만
+     이루어지도록 설계됨. chat에서 토큰 언급 차단은 의도된 보안 정책. 유지.
+
+  5. RealSaintScheduleConnector.java — @SuppressWarnings("unused") Clock 필드
+     "future cache TTL keying" 주석이 있고 패키지 전용 테스트 생성자에서
+     Clock을 주입받음. 실제 활용 경로가 확보됨. 유지.
+
+  6. useSaintAuth.tsx — console.warn() 2개
+     401이 아닌 예기치 않은 auth 오류에서만 발동. 정상 동작 경로 아님.
+     삭제하면 오히려 프로덕션 디버깅이 어려워짐. 유지.
+
+  7. ThreadLocal 3개 중복 패턴 (SaintToolContext, LmsToolContext, LibraryToolContext)
+     패턴은 동일하지만 메서드명이 각각 다름 (withStudentId vs withSessionKey).
+     제네릭 추상화 시 호출부 전체 수정 필요 → 현재 위험 대비 이득 없음. 유지.
+     (각 컨텍스트가 독립적으로 동작해야 하는 이유도 있음)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 문서 업데이트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - docs/mcp-tools.md
+    6개 기준 → 10개 기준으로 전면 재작성.
+    공개 tool 6개, u-SAINT 2개, LMS 1개, 도서관 1개로 분류.
+    connector yaml 전체 목록, inspector 확인 절차, 인증 tool 제한 설명 추가.
+
+  - docs/handoff/latest.md
+    Task 17 진행 중 상태 → "MCP 서버 완성, Phase 4 대기" 로 업데이트.
+    다음 AI를 위한 Phase 4 설계 선결조건 및 opener block 포함.
+
+  - docs/dev-log.md
+    이번 자동화 세션 작업 내역 추가.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 커밋 내역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  commit 1 — PR #139 rebase merge (feat/task-13)
+    "feat(task-13): real library seat connector + library loans full stack"
+    37 files changed, 1576 insertions
+
+  commit 2 — 최적화 + 문서
+    "chore: fix stale system prompt + React key anti-pattern + docs refresh"
+    5 files changed, 128 insertions, 276 deletions
+
+  양쪽 다 origin/main에 push 완료. tests 392개 통과.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 프로젝트 상태
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  MCP 서버 (10개 tool):    ✅ 완성
+  REST API:                ✅ 완성
+  프론트엔드 기본 UI:       ✅ 완성
+  도서관 로그인 모달:       ✅ 완성
+  Phase 4 예약 에이전트:   ⏳ 다음 단계
+
+  Phase 4 시작 전 필요한 것:
+  - oasis.ssu.ac.kr 예약 POST 엔드포인트 + 요청/응답 body 스파이크
+    (DevTools에서 실제 예약 과정 캡처 필요)
+  - 그거 캡처하면 /plan 모드로 설계하고 바로 구현 가능해
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  잘 자, 일어나면 Phase 4 시작하자!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
