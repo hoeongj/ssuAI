@@ -34,6 +34,15 @@ ssuai:
     refresh-cookie:
       # Prod is HTTPS-only — refresh cookie must be marked Secure.
       secure: true
+      # Prod frontend (Vercel) and backend (duckdns) are on different
+      # sites, so the refresh cookie must travel cross-site on the
+      # `POST /api/auth/refresh` fetch from /auth/return. SameSite=Lax
+      # would let the cookie ride a top-level GET but blocks cross-site
+      # POST (browser drops the cookie → 401, "세션 갱신 실패"). Set
+      # None here; the cookie is already HttpOnly + Secure and our CORS
+      # allowlist (WebCorsProdConfig) pins the exact frontend origin,
+      # so widening SameSite does not open a fresh CSRF path.
+      same-site: None
 
 # JVM tuning: prefer setting JAVA_OPTS on the ConfigMap (e.g.
 # `-XX:+UseG1GC -XX:MaxRAMPercentage=75.0`) so it can be tweaked
