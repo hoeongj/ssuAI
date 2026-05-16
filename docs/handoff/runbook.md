@@ -29,10 +29,10 @@ Trigger 문구: "토큰 끝났어", "다른 AI로 갈게", "다른 클로드로 
    - **보안 주의** — one-shot 토큰, secrets, 로그/echo 금지 항목
 
 3. **Next-AI opener block** — 사용자가 다음 AI 첫 턴에 그대로 paste
-   할 단일 fenced code block 출력. 다음 agent 가 `AGENTS.md` 또는
-   `CLAUDE.md`, `docs/handoff/latest.md`, `MEMORY.md` 를 먼저 읽고
-   `git status --short --branch` 후 액션 #1 부터 진행하도록 지시.
-   현재 task ID / PR # / branch 명 포함.
+   할 단일 fenced code block 출력. **첫 줄은 반드시 `/model opusplan`**.
+   다음 agent 가 `AGENTS.md` 또는 `CLAUDE.md`, `docs/handoff/latest.md`,
+   `MEMORY.md` 를 먼저 읽고 `git status --short --branch` 후 액션 #1
+   부터 진행하도록 지시. 현재 task ID / PR # / branch 명 포함.
 
 4. Handoff 문서 자체를 commit/push — `chore/handoff-<date>` 브랜치 PR
    또는 main 직 push. 메타데이터만이므로 auto-merge 정책 적용.

@@ -129,6 +129,8 @@ McpSelfDogfoodTests > clientCanListEveryToolExposedByServer() FAILED
 ## Next-AI opener block
 
 ```text
+/model opusplan
+
 ssuAI 프로젝트 이어받음. 다음 순서대로:
 
 1. CLAUDE.md (또는 AGENTS.md) Project + Implementation Workflow 섹션 읽기

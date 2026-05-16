@@ -79,9 +79,19 @@ context 에서 작업.
 - Verify 후 done 선언: 백엔드 `.\gradlew.bat test`, 프론트 `pnpm --dir frontend test|lint|typecheck`
 
 ## opusplan 워크플로 (현재 모델 설정)
-- **설계·아키텍처 결정** (`/plan` 진입) → Opus 4.7 작동. 비자명 feature 설계, spec 검토, security 판단 등
-- **구현·테스트·커밋** (일반 모드) → Sonnet 작동. 파일 편집, 테스트 실행, git 커밋, PR 열기
-- `/plan` 은 설계 판단이 필요한 순간에만 — 단순 fix·커밋·테스트 실행은 일반 모드로 처리
+- **설계·아키텍처 결정** (`/plan` 진입) → Opus 4.7. 비자명 feature 설계, security 판단, 아키텍처 트레이드오프
+- **구현·테스트·커밋** (일반 모드) → Sonnet. 파일 편집, 테스트 실행, git 커밋, PR 열기
+
+`/plan` 트리거 — **아래 중 하나여야 함:**
+- 외부 시스템 auth shape / 연동 방식이 spike 로 불명확한 상황
+- 새 도메인 패키지 신설 (클래스 책임·data flow·security policy 미결)
+- `docs/security.md` 관련 trade-off 결정
+
+**`/plan` 스킵 (Sonnet 직행):**
+- 해당 task 의 `docs/tasks/<NN>-*.md` spec 이 설계를 이미 커버 → 구현만
+- 단순 fix / 커밋 / 테스트 실행 / PR 열기 / spec 에 없는 사소한 판단
+
+세션 시작 시 `/model opusplan` 설정 필수 — 핸드오프 opener block 에 포함됨.
 
 ## Authorship & Merge
 - **No Claude/AI/Anthropic attribution** — commit / PR body / docs /
