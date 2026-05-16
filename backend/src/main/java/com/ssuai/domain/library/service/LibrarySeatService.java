@@ -31,22 +31,29 @@ public class LibrarySeatService {
     }
 
     public LibrarySeatStatusResponse getSeatStatus(LibraryFloor floor) {
+        return fetchWithToken(floor, null);
+    }
+
+    public LibrarySeatStatusResponse getSeatStatusForSession(LibraryFloor floor, String sessionKey) {
+        String token = null;
+        if (authRequired) {
+            token = sessionStore.token(sessionKey).orElseThrow(() -> {
+                log.info("library seat: session required, no token for sessionKey={}",
+                        LibrarySessionStore.fingerprint(sessionKey));
+                return new LibraryAuthRequiredException();
+            });
+        }
+        return fetchWithToken(floor, token);
+    }
+
+    private LibrarySeatStatusResponse fetchWithToken(LibraryFloor floor, String token) {
         try {
-            return cache.get(floor);
+            return cache.get(floor, token);
         } catch (ConnectorException exception) {
             log.warn("library seat fetch failure: floor={} code={}",
                     floor.displayLabel(), exception.getErrorCode().name());
             throw exception;
         }
-    }
-
-    public LibrarySeatStatusResponse getSeatStatusForSession(LibraryFloor floor, String sessionKey) {
-        if (authRequired && !sessionStore.has(sessionKey)) {
-            log.info("library seat: session required, no token for sessionKey={}",
-                    LibrarySessionStore.fingerprint(sessionKey));
-            throw new LibraryAuthRequiredException();
-        }
-        return getSeatStatus(floor);
     }
 
     boolean isAuthRequired() {

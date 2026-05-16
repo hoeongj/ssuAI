@@ -63,6 +63,8 @@ class LlmChatServiceTests {
             mock(com.ssuai.domain.saint.service.SaintGradesService.class);
     private final com.ssuai.domain.lms.service.LmsAssignmentsService lmsAssignmentsService =
             mock(com.ssuai.domain.lms.service.LmsAssignmentsService.class);
+    private final com.ssuai.domain.library.service.LibraryLoansService libraryLoansService =
+            mock(com.ssuai.domain.library.service.LibraryLoansService.class);
 
     @Test
     void fallsBackAcrossProvidersWhenFirstProviderRateLimitIsExceeded() {
@@ -781,6 +783,7 @@ class LlmChatServiceTests {
                 scheduleService,
                 gradesService,
                 lmsAssignmentsService,
+                libraryLoansService,
                 List.of(mcpClient)
         );
     }
@@ -800,6 +803,7 @@ class LlmChatServiceTests {
                 scheduleService,
                 gradesService,
                 lmsAssignmentsService,
+                libraryLoansService,
                 List.of(mcpClient),
                 clock
         );

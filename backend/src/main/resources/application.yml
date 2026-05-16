@@ -69,6 +69,7 @@ ssuai:
     dorm-meal: mock # mock | real
     library-seat: mock # mock | real
     library-book: mock # mock | real
+    library-loans: mock # mock | real
     saint-schedule: mock # mock | real
     saint-grades: mock # mock | real
     lms-assignments: mock # mock | real
@@ -79,6 +80,9 @@ ssuai:
       # before walking over, long enough that the library page is not
       # hammered at chat-message frequency.
       cache-ttl: 30s
+      base-url: ${SSUAI_LIBRARY_SEAT_BASE_URL:https://oasis.ssu.ac.kr}
+      referer: https://oasis.ssu.ac.kr/library-services/smuf/reading-rooms
+      timeout: 10s
     book:
       # Per-(query,page,size) cache TTL. Longer than seat (which is volatile);
       # checkout state shifts on the order of minutes, not seconds.

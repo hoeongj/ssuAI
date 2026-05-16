@@ -5,5 +5,8 @@ import com.ssuai.domain.library.dto.LibrarySeatStatusResponse;
 
 public interface LibrarySeatConnector {
 
-    LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor);
+    /**
+     * @param token Pyxis-Auth-Token for upstream API calls; null for mock connector
+     */
+    LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token);
 }

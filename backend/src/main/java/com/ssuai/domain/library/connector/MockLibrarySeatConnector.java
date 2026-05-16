@@ -21,7 +21,7 @@ import com.ssuai.domain.library.dto.LibrarySeatZone;
 public class MockLibrarySeatConnector implements LibrarySeatConnector {
 
     @Override
-    public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor) {
+    public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token) {
         return switch (floor) {
             case B1 -> snapshot(floor, 24, 9, 12, 3, List.of(
                     new LibrarySeatZone("그룹스터디", 12, 5, List.of()),

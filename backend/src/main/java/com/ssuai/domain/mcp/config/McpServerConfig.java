@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import com.ssuai.domain.mcp.tool.CampusMcpTools;
 import com.ssuai.domain.mcp.tool.DormMcpTools;
 import com.ssuai.domain.mcp.tool.LibraryBookMcpTool;
+import com.ssuai.domain.mcp.tool.LibraryLoansMcpTool;
 import com.ssuai.domain.mcp.tool.LibrarySeatMcpTool;
 import com.ssuai.domain.mcp.tool.LmsAssignmentsMcpTool;
 import com.ssuai.domain.mcp.tool.MealMcpTools;
@@ -24,6 +25,7 @@ class McpServerConfig {
             CampusMcpTools campusMcpTools,
             LibrarySeatMcpTool libraryMcpTool,
             LibraryBookMcpTool libraryBookMcpTool,
+            LibraryLoansMcpTool libraryLoansMcpTool,
             SaintScheduleMcpTool saintScheduleMcpTool,
             SaintGradesMcpTool saintGradesMcpTool,
             LmsAssignmentsMcpTool lmsAssignmentsMcpTool
@@ -35,6 +37,7 @@ class McpServerConfig {
                         campusMcpTools,
                         libraryMcpTool,
                         libraryBookMcpTool,
+                        libraryLoansMcpTool,
                         saintScheduleMcpTool,
                         saintGradesMcpTool,
                         lmsAssignmentsMcpTool)

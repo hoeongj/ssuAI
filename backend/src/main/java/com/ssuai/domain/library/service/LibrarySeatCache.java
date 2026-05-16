@@ -43,7 +43,7 @@ public class LibrarySeatCache {
         this.clock = clock;
     }
 
-    public LibrarySeatStatusResponse get(LibraryFloor floor) {
+    public LibrarySeatStatusResponse get(LibraryFloor floor, String token) {
         Entry cached = entries.get(floor);
         if (cached != null && cached.expiresAt.isAfter(clock.instant())) {
             return cached.value;
@@ -53,7 +53,7 @@ public class LibrarySeatCache {
         CompletableFuture<Entry> winner = inflight.putIfAbsent(floor, mine);
         if (winner == null) {
             try {
-                LibrarySeatStatusResponse fresh = connector.fetchSeatStatus(floor);
+                LibrarySeatStatusResponse fresh = connector.fetchSeatStatus(floor, token);
                 Entry entry = new Entry(fresh, clock.instant().plus(ttl));
                 entries.put(floor, entry);
                 mine.complete(entry);

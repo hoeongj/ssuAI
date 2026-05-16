@@ -1,8 +1,9 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
+import { BookOpen, LogIn } from "lucide-react";
 import { useState } from "react";
 
+import { LibraryLoginModal } from "@/components/library/LibraryLoginModal";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState, getErrorStateDetails } from "@/components/shared/ErrorState";
 import { Badge } from "@/components/ui/badge";
@@ -40,8 +41,10 @@ function LibrarySeatSkeleton() {
 
 export function LibrarySeatCard() {
   const [floor, setFloor] = useState<LibraryFloorCode>(DEFAULT_FLOOR);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const { data, error, isLoading, isFetching, refetch } = useLibrarySeatStatus(floor);
   const errorState = getErrorStateDetails(error);
+  const needsAuth = errorState?.code === "LIBRARY_SESSION_REQUIRED";
   const usagePercent =
     data && data.totalSeats > 0
       ? Math.round(((data.totalSeats - data.availableSeats) / data.totalSeats) * 100)
@@ -75,13 +78,27 @@ export function LibrarySeatCard() {
 
         {isLoading ? <LibrarySeatSkeleton /> : null}
 
-        {errorState ? (
+        {needsAuth ? (
+          <div className="flex flex-col items-start gap-3 rounded-md border border-border bg-muted/40 p-4">
+            <p className="text-sm text-muted-foreground">
+              실시간 좌석 현황은 도서관 로그인이 필요합니다.
+            </p>
+            <Button size="sm" onClick={() => setShowLoginModal(true)}>
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              도서관 연동
+            </Button>
+          </div>
+        ) : errorState ? (
           <ErrorState
             code={errorState.code}
             message={errorState.message}
             traceId={errorState.traceId}
             onRetry={() => void refetch()}
           />
+        ) : null}
+
+        {showLoginModal ? (
+          <LibraryLoginModal onClose={() => setShowLoginModal(false)} />
         ) : null}
 
         {data && !errorState ? (
