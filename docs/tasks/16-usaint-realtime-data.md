@@ -219,16 +219,128 @@ Elements rows = doc.select("tbody[id$=-contentTBody] tr[rt=1]");
 // ... parse each row's td[role=gridcell] cells → ScheduleEntry DTOs
 ```
 
-추가 follow-up (PR 16b 첫 cut 이후 enhancement, 별도 PR):
+### 3.4 학기 이동 (multi-term iterate) — 2차 spike 결과
 
-- redirect 자동 follow (SAP 가 `;sap-ext-sid=...` 박힌 URL 로 302 할
-  가능성) — `HttpClient.Redirect.NORMAL` 만 설정하면 됨
-- 학기 / 학년도 dropdown 의 현재 선택값 parsing — `<select>` 또는
-  `<input>` hidden 의 value 에서 추출하면 응답이 어느 학기 시간표인지
-  맥락 포함 가능
-- 학기 변경 query (현재 학기 외 과거 학기 시간표 fetch) — POST 로
-  `sap-wd-secure-id` + SAPEVENTQUEUE 보내야 함. 시나리오 (b) 쪽 경로.
-  Phase 4 candidate.
+ssuAI 의 `get_my_schedule` 의 **본질은 입학년도부터 현재 학기까지 누적
+시간표** (학번에서 입학 학년 추출 → 현재까지 모든 학기 iterate). 첫
+cut 의 단일 학기 GET 만으로는 부족.
+
+**UI 패턴**: 시간표 페이지에 `<select>` dropdown 이 아니라
+**PREVIOUS / NEXT 버튼** 으로 학기 nav. 사용자 spike 결과 `WDA7` 가
+"이전 학년도" 버튼 (한 번 클릭하면 2026 → 2025 로 학년도 단위 점프.
+2026-1 → 2025-1). 즉:
+
+- `WDA7` = 이전 학년도 (학년도 −1, 학기 그대로 유지 추정)
+- 계절학기 (여름·겨울) 와 2학기 nav 는 별도 버튼 (`WDA8`/`WDA9` 등)
+  일 가능성. PR 16b 통합 테스트 시 응답 HTML 에서 button ID grep 으로
+  확정.
+
+**SAPEVENTQUEUE event shape** (사용자 cURL paste 디코드):
+
+```
+POST https://ecc.ssu.ac.kr:8443/sap/bc/webdynpro/SAP/ZCMW2102;sap-ext-sid=...
+Content-Type: application/x-www-form-urlencoded
+Cookie: <portal phase cookies (MYSAPSSO2 등)>
+
+sap-charset=utf-8
+sap-wd-secure-id=<current secureId>
+fesrAppName=ZCMW2102
+fesrUseBeacon=true
+SAPEVENTQUEUE=
+  MessageArea_Expand~E002Id~E004WD0316~E003...
+  ClientInspector_Notify~E002Id~E004WD01~E005Data~E004...
+  Button_Press~E002Id~E004WDA7~E003~E002ResponseData~E004delta~E005ClientAction~E004submit~E003~E002~E003
+  Form_Request~E002Id~E004sap.client.SsrClient.form~E005Async~E004false~E005FocusInfo~E004~0040~007B~0022sFocussedId~0022~003A~0022WDA7~0022~007D~E005Hash~E004~E005DomChanged~E004false~E005IsDirty~E004false~E003~E002ResponseData~E004delta~E003~E002~E003
+```
+
+핵심 event 만 있으면 동작 (다른 ClientInspector_Notify 등은 telemetry,
+빠져도 무방 추정 — PR 16b 통합 테스트로 검증). control char 인코딩:
+
+| Token | Decoded | 의미 |
+|---|---|---|
+| `~E001` | 0x01 | event 구분자 |
+| `~E002` | 0x02 | event meta start |
+| `~E003` | 0x03 | event meta end |
+| `~E004` | 0x04 | key=value 구분자 |
+| `~E005` | 0x05 | param 구분자 |
+| `~003A` | `:` | URL-encoded |
+| `~007B` `~007D` | `{` `}` | URL-encoded JSON wrapper |
+| `~0040` | `@` | JSON literal prefix |
+
+**응답 shape — WebDynpro full-update XML wrapper**:
+
+```xml
+<updates>
+  <full-update windowid="sapwd_main_window">
+    <content-update id="sapwd_main_window_root_">
+      <![CDATA[ ... 전체 페이지 HTML (시간표 + 새 secure-id + form) ... ]]>
+    </content-update>
+  </full-update>
+</updates>
+```
+
+`<full-update>` (= 전체 page re-render) 라 partial DOM op apply 불필요.
+CDATA 안 HTML 추출 → Jsoup parse → 첫 GET 과 동일한 selector 로 표 row
++ 새 `sap-wd-secure-id` 추출.
+
+**Multi-term connector pseudo-code** (PR 16b):
+
+```java
+List<TermSchedule> fetchAllTerms(String studentId, PortalCookies cookies) {
+    int enrollYear = Integer.parseInt(studentId.substring(0, 4));
+    LocalDate now = clock.now();
+    int currentYear = now.getYear();
+    int currentTerm = (now.getMonthValue() <= 8) ? 1 : 2;  // 8월말 이후 2학기
+
+    // 1. 첫 GET — 현재 학기
+    String html = httpGet(ZCMW2102_URL, cookies);
+    String secureId = parseSecureId(html);
+    List<ScheduleEntry> currentRows = parseRows(html);
+    List<TermSchedule> all = new ArrayList<>();
+    all.add(new TermSchedule(currentYear, currentTerm, currentRows));
+
+    // 2. 학년도 prev (WDA7) 반복 — 입학년도 도달까지
+    int year = currentYear;
+    while (year > enrollYear) {
+        String xml = httpPostSapEvent(ZCMW2102_URL, cookies, secureId,
+                                       "Button_Press", "WDA7");
+        html = extractCdata(xml);
+        secureId = parseSecureId(html);
+        currentRows = parseRows(html);
+        year--;
+        // 학기는 일단 currentTerm (1학기) 가정 — WDA7 가 학년도만 점프
+        all.add(new TermSchedule(year, currentTerm, currentRows));
+    }
+    // 3. 2학기 iterate 는 follow-up — 별도 button (WDA8?) spike 필요
+    return all;
+}
+```
+
+**보안 / 운영 considerations**:
+
+- iterate 가 학번 입학년도까지 ~ 4-5 학년도 → 최대 ~10 POST 요청.
+  SaintSessionStore 의 cookie TTL 30분 내에 다 끝나야 함. 한 시간표
+  fetch 가 ~10 ecc round-trip = 보통 1-2초. 문제 없음.
+- 각 POST 응답에서 새 secure-id 추출해 다음 POST 에 사용 (CSRF
+  rotation). 한 step 실패하면 ProgressException → 부분 결과만
+  반환 + UI 에 경고.
+- `ScheduleService` 가 fetch 한 누적 시간표를 **WeeklyMealCache 처럼
+  in-memory cache** (TTL ~6시간) 해서 사용자가 같은 chat session 에서
+  여러 번 "내 시간표" 물어도 재 fetch 안 함.
+- 학번 → 입학 학년 매핑은 단순 substring (앞 4자리). 휴학·복학으로
+  학적이 끊긴 학생도 입학년도는 학번에 박혀있어 변하지 않음.
+
+**PR 16b 첫 cut scope 결정**:
+
+- **단일 학기** (현재 학기) — 위 1번 GET 만, 4-5줄 connector. 가장
+  단순.
+- **전체 학년도 1학기 iterate** (입학년 1학기 ~ 현재 1학기) — 1번 +
+  2번. WDA7 prev 만 사용. 2학기·계절학기는 미포함.
+- **전체 학기 누적** (모든 1·2학기, 선택적 계절학기) — WDA8/WDA9 등
+  추가 button spike 필요. 별도 PR.
+
+권장: PR 16b 첫 cut = "**전체 학년도 1학기 iterate**". 사용자 의도의
+70% cover, code 복잡도 적당. 2학기 nav 는 follow-up spike + PR 로.
 
 ## 4. Architecture
 
