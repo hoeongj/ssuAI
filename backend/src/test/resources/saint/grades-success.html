@@ -3,11 +3,13 @@
   WebDynpro component ZCMB3W0017 (학생 성적조회), captured 2026-05-16
   (Task 16 PR 16c spike).
 
-  Response shape: full-update XML wrapper. Unlike ZCMW2102 (시간표),
-  ZCMB3W0017's first GET response is **already** a WebDynpro
-  <updates><full-update><content-update><![CDATA[...HTML...]]></...>
-  envelope — the connector must unwrap before parsing. (시간표는 첫
-  GET 이 raw HTML 이고 WDA7 prev POST 응답만 wrapper 형태.)
+  Response shape: a WebDynpro full-update XML wrapper that carries
+  the re-rendered page HTML inside its content-update payload. Unlike
+  ZCMW2102 (시간표), ZCMB3W0017's first GET response is **already**
+  wrapped — the connector must call WebDynproResponseUnwrapper before
+  parsing. (시간표는 첫 GET 이 raw HTML, WDA7 prev POST 응답만 wrapper.)
+  This comment intentionally avoids the literal CDATA markers in text
+  so the unwrapper's indexOf-based scan finds only the real payload.
 
   What was kept verbatim:
     - Every structural attribute the parser keys off:

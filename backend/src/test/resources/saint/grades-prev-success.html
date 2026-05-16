@@ -4,14 +4,14 @@
 
   Captured 2026-05-16 right after the user clicked 이전학기 once from
   the default first-load page. The response shape is a WebDynpro
-  full-update XML wrapper (same as grades-success.html), but the
-  학기별 세부 표 (tbody id$="-contentTBody" for the bottom table) is
-  now **populated** with the previous term's per-course rows. The
-  top 학기별 GPA history table is identical to the first GET (the
-  history doesn't change), and so are the 학적부/증명 cumulative
-  summary blocks — this fixture omits both to stay minimal; parser
-  consumes ONLY the per-course detail table + the rotated CSRF from
-  prev responses.
+  full-update XML wrapper (same envelope as grades-success.html), but
+  the 학기별 세부 표 (the second tbody[id$="-contentTBody"] in
+  document order) is now **populated** with the previous term's
+  per-course rows. The real response also re-renders the top 학기별
+  GPA history table and the 학적부/증명 summaries unchanged; we keep
+  an EMPTY-rows placeholder for the history tbody so the parser's
+  "second tbody = detail" indexing still resolves correctly. The
+  connector ignores the history / summary blocks on prev hops.
 
   What the parser keys off (kept verbatim):
     - tbody[id$="-contentTBody"] (WD ID prefix is dynamic, suffix stable)
@@ -33,6 +33,10 @@
   placeholders. Student id / name never appear in this response shape.
 -->
 <updates><full-update windowid="sapwd_main_window"><content-update id="sapwd_main_window_root_"><![CDATA[<form id="sap.client.SsrClient.form" action="/sap/bc/webdynpro/SAP/ZCMB3W0017"><input id="sap-wd-secure-id" name="sap-wd-secure-id" type="hidden" value="ROTATED-CSRF-AFTER-PREV"/><table>
+<tbody id="WD65-contentTBody-placeholder">
+<tr rt="2" role="row"><th>학년도</th></tr>
+</tbody>
+</table><table>
 <tbody id="WD0201-contentTBody">
 <tr rt="2" role="row" aria-selected="false">
 <th id="WD0206" subct="HC" lsdata="{2:'SELECTIONCOLUMN'}" role="columnheader" cc="0">&nbsp;</th>
