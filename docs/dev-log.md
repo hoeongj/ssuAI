@@ -5,6 +5,21 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: **Task 16 PR 16a — multi-term iterate spike**. 사용자
+  요구를 다시 정리: `get_my_schedule` 의 본질은 입학년도부터 현재까지
+  누적 시간표 (학번에서 입학 학년 추출 → 모든 학기 iterate). 시간표
+  페이지의 학기 nav 가 dropdown 이 아니라 **PREVIOUS/NEXT 버튼**임을
+  사용자 brower spike 로 확인. `WDA7` 버튼이 prev — SAPEVENTQUEUE 의
+  `Button_Press~E002Id~E004WDA7` event 형태. 한 번 클릭 = 학년도 −1
+  점프 (2026-1 → 2025-1). 즉 학년도 단위 prev — 학기 단위 prev / 계절
+  학기 nav 는 별도 버튼 (`WDA8`/`WDA9` 등) 가능성, PR 16b 통합 테스트
+  시 응답 HTML grep 으로 확정. 응답은 WebDynpro full-update XML wrapper
+  (`<updates><full-update><content-update><![CDATA[...HTML...]]>`) — 즉
+  partial DOM op 가 아니라 전체 페이지 re-render. CDATA 추출 → Jsoup
+  parse → 첫 GET 과 동일한 selector 재사용. spec §3.4 신설로 SAPEVENTQUEUE
+  control char 인코딩 표, multi-term connector pseudo-code, PR 16b 첫
+  cut scope ("전체 학년도 1학기 iterate" 권장 — 사용자 의도 70% cover,
+  2학기·계절학기는 follow-up spike) 잠금.
 - 2026-05-16: **Task 16 PR 16a — 시나리오 (a) RESOLVED**. ZCMW2102 첫
   GET response body (gzip 8.3KB, 압축 풀면 96KB) 안에 시간표 표
   markup 이 직접 포함됨을 확인 (`contentTBody` / `<tbody>` / `<form
