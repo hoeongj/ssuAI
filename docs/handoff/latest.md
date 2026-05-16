@@ -12,16 +12,22 @@
   (spec-locked fixture 의 P/F-only 6학점 truth). `gradlew test` 전체 green.
 - **main clean, 열린 PR 없음, 작업 브랜치 다 삭제**. 외부 의존 (TTL spike
   서버 polling + GitHub Actions auto-deploy) 만 남음.
+- **이번 세션 자동 작업 추가**: PR #130 — `LlmChatService.compactAndCap` 에
+  `get_my_grades` ({count,link} 만) / `get_my_schedule` (compact row) 분기
+  잠금 + 단위 테스트 3개로 본문 누출 영구 고정 (spec §6 #6 / §8). Task
+  16 security checklist 8개 중 7개 ✅, 1개 (grades audit log) MCP tool 등록
+  시점으로 deferred.
 - **다음 세션 옵션**: (a) Task 16 follow-up — `get_my_schedule`/`get_my_grades`
-  MCP tool 등록 + `LlmChatService.compactToolResponse` 본문 누출 가드 단위
-  테스트 / (b) Task 17 (LMS integration) 신규 시작 — `get_my_assignments`,
-  세션 store 패턴 재사용.
+  MCP tool 등록 — chat thread-local pattern 결정 필요 (아키텍처) /
+  (b) Task 17 (LMS integration) 신규 시작 — `get_my_assignments`, 세션
+  store 패턴 재사용, auth shape spike 필요 (사용자).
 
 ## 이번 세션 머지/푸시
 
 | 항목 | 상태 | PR / Branch |
 |------|------|-------------|
 | PR #128 성적 service+controller+tests | ✅ MERGED | `feat/task-16c-grades-impl` (deleted) |
+| PR #130 chat LLM 누출 가드 (grades/schedule compactAndCap + tests) | ✅ MERGED | `feat/chat-grades-schedule-leak-guard` (deleted) |
 
 이전 세션 정리 잔여: 메타 (이 핸드오프 doc 자체) 만 남음. 본 doc 머지로 정리 완료.
 
@@ -54,13 +60,15 @@
    (chat path 가 studentId 를 MCP self-call 에 propagate 하는 mechanism 없음)
    + 외부 MCP client (Claude Desktop) 가 학번 인자 위조 가능. **선결 조건**:
    chat 본인 호출 vs 외부 MCP client 호출 구분 + studentId thread-local
-   주입. 그 다음 별도 PR 에서 두 tool 등록.
-2. **`LlmChatService.compactToolResponse` 본문 누출 가드 단위 테스트** —
-   spec §6 #6 + §8. `get_my_grades` / `get_my_schedule` 응답이 LLM 프롬프트로
-   raw 흘러가지 않게 compact 단계 unit-pin. 성적은 특히 LLM 프롬프트 절대
-   금지 — 본문 누출 단위 테스트로 영구 고정.
+   주입. 그 다음 별도 PR 에서 두 tool 등록. ← **아키텍처 결정 필요**.
+   compactAndCap 정책은 이미 잠겨있어 (PR #130) wiring 시 자동으로 안전한
+   형태로만 LLM 에 전달.
+2. ~~`LlmChatService.compactToolResponse` 본문 누출 가드 단위 테스트~~
+   ✅ DONE PR #130. grades = `{count,link}` 만, schedule = compact row,
+   단위 테스트 3개로 영구 고정.
 3. **multi-term nav 확장** — 시간표 현재는 "전체 학년도 1학기 iterate" 만
-   (WDA7 prev). 2학기/계절학기 nav follow-up (spec §3.4).
+   (WDA7 prev). 2학기/계절학기 nav follow-up (spec §3.4). 새 fixture
+   capture 필요 (사용자 브라우저 spike).
 
 ## Task 17 — LMS integration (다음 큰 마디 후보)
 
@@ -119,10 +127,12 @@ ssuAI 프로젝트 이어받음. 다음 순서대로:
 현재 상태:
 - main clean, 열린 PR 없음, 작업 브랜치 다 삭제됨
 - u-SAINT 3 endpoints (학적/시간표/성적) end-to-end live with mock default
+- compactAndCap 의 LLM 누출 가드 잠금 (PR #130) — grades = {count,link} 만, schedule = compact row
+- Task 16 security checklist 7/8 ✅ (남은 1개는 MCP tool 등록 시점)
 - 외부 의존 그대로 (TTL spike 서버 polling + GitHub Actions auto-deploy 선택) — 폴링/언급 금지, 사용자가 결과 통지
 
 다음 세션 옵션 — 사용자 의지 확인 후 진행:
-(a) Task 16 follow-up — get_my_schedule/get_my_grades MCP tool 등록 + compactToolResponse 누출 가드 단위 테스트
+(a) Task 16 follow-up — get_my_schedule/get_my_grades MCP tool 등록 (chat thread-local pattern 결정 필요)
 (b) Task 17 (LMS integration) 신규 시작 — docs/tasks/17-lms-integration.md §1/§2 읽기
 
 사용자 짧은 답 선호. 진단/계획만 길게 늘어놓지 말고 바로 진행.

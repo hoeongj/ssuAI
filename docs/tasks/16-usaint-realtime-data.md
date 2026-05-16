@@ -817,21 +817,36 @@ follow-up `application-prod.yml` PR — same sequenced-flip pattern Task
 
 ## 8. Security checklist
 
-- [ ] `SSUAI_CREDENTIAL_ENCRYPTION_KEY` env required in prod. Dev/test
-      ephemeral fallback acceptable.
-- [ ] Portal cookies encrypted at rest (AES-GCM, per-record IV).
-- [ ] Cookie store TTL ≤ 30 minutes. Expired entries pruned on read.
-- [ ] **Never log** the cookie value, the schedule rows, the grade rows.
-      Log only counts/shape: `connector=saint-schedule status=ok rows=12`.
-- [ ] `LlmChatService.compactToolResponse` budgets schedule rows
+- [x] `SSUAI_CREDENTIAL_ENCRYPTION_KEY` env required in prod. Dev/test
+      ephemeral fallback acceptable. — `SaintSessionStore.buildAesKey` 빈
+      값일 때 SecureRandom AES-256 key + 경고 로그.
+- [x] Portal cookies encrypted at rest (AES-GCM, per-record IV). —
+      `SaintSessionStore` AES/GCM/NoPadding 256-bit, 96-bit IV per record.
+- [x] Cookie store TTL ≤ 30 minutes. Expired entries pruned on read. —
+      `SaintSessionProperties.ttl` default 30분, `cookies()` 가 expiry 체크
+      후 expired 면 remove.
+- [x] **Never log** the cookie value, the schedule rows, the grade rows.
+      Log only counts/shape: `connector=saint-schedule status=ok rows=12`. —
+      `RealSaintScheduleConnector` / `RealSaintGradesConnector` 모든
+      log 가 `studentFp={fingerprint}` + count/reason 만, raw row/cookie X.
+- [x] `LlmChatService.compactToolResponse` budgets schedule rows
       conservatively; **grades are never included in LLM prompts** —
-      tool calls return content to the *controller* path only.
+      tool calls return content to the *controller* path only. —
+      compactAndCap 의 `get_my_schedule` 분기 (dayOfWeek/period/course/room
+      만) + `get_my_grades` 분기 (`{count, link}` 만) PR #130 잠금, 단위
+      테스트 3개로 영구 고정.
 - [ ] Tool-call audit on grades — when chat invokes `get_my_grades`,
-      log only "user X requested grades", not what it returned.
-- [ ] Test fixtures contain only `20999999` / 홍길동 / placeholder
-      grades. Never a real student row.
-- [ ] `gitleaks` rule already catches Anthropic keys; verify it doesn't
-      false-positive on encrypted-cookie hex blobs in fixtures.
+      log only "user X requested grades", not what it returned. —
+      MCP tool 등록 (chat thread-local pattern 갖춰진 뒤 별 PR) 시점에
+      executeToolCall 분기에서 audit log 추가.
+- [x] Test fixtures contain only `20999999` / 홍길동 / placeholder
+      grades. Never a real student row. — `grades-success.html` /
+      `grades-prev-success.html` / `timetable-success.html` 다 placeholder.
+- [x] `gitleaks` rule already catches Anthropic keys; verify it doesn't
+      false-positive on encrypted-cookie hex blobs in fixtures. —
+      `.gitleaks.toml` extends default; 모든 PR 의 pre-commit hook 에서
+      통과 (fixtures 에는 encrypted blob 자체가 없고, plaintext placeholder
+      값만 있음).
 
 ## 9. Stop and flag
 
