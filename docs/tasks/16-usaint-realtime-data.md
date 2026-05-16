@@ -189,26 +189,46 @@ sequence:
 빈 cell vs 강의 cell 의 구분이 명확 (서로 배타적). cc attribute 가
 column 매핑을 줘서 헤더-data row 의 column 순서 drift 도 robust.
 
-### 3.3 PR 16b 시작 전 마지막 spike (남은 1건)
+### 3.3 PR 16b 시작 전 마지막 spike — 결과 (시나리오 a 확정)
 
-ZCMW2102 페이지의 **첫 GET response body** 에 시간표 표 markup
-(`<tbody id="...contentTBody">` + cell content) 이 직접 들어있는지
-확인 필요. 두 가지 가능 시나리오:
+ZCMW2102 페이지의 **첫 GET response body** (96KB; gzip transferred
+8.3KB) 안에 표 markup 이 **직접 포함**돼있음을 확인:
 
-- **(a) initial render 가 표 포함**: connector 가 GET 한 번으로
-  HTML 받아 Jsoup parse 가능. 가장 단순한 경로.
-- **(b) partial XHR delta 필요**: GET 응답은 빈 표 + WebDynpro client
-  bootstrap → 후속 POST 1-2번이 표를 채움. connector 가 secure-id
-  parse 후 작은 SAPEVENTQUEUE event 한 번 더 던져야.
+- `<tbody id="...-contentTBody">` ✓ (시간표 본체)
+- `<form action="/sap/bc/webdynpro/SAP/ZCMW2102;sap-ext-sid=...?sap-contextid=...">` ✓
+- `<input name="sap-wd-secure-id" value="...">` ✓ (hidden CSRF — read 전용 GET 만 할 거면 안 써도 됨)
+- "학년도" / "학기" 텍스트 dropdown UI 도 같이 들어있음 (학기 선택
+  parser 확장은 PR 16b 첫 cut 의 scope 밖)
 
-이 둘 중 어느 쪽인지가 connector 구현 복잡도를 결정. 브라우저에서
-Network 탭의 ZCMW2102 row 중 응답 size 가 가장 큰 첫 번째 row 의
-**Response 탭 → 전체 응답 body 캡처** → `<tbody` 키워드 grep 으로
-확인. (a) 면 connector 는 4-5줄, (b) 면 secure-id 추출 + 추가 POST
-필요.
+즉 **시나리오 (a) — 단순 GET 한 번으로 표 받음**. WebDynpro partial
+XHR delta / SAPEVENTQUEUE / secure-id round-trip 모두 불필요 (read-only
+fetch 한정).
 
-표 parsing 은 이미 fixture 로 잠겨있어 (a)/(b) 어느 쪽이든 parser
-재사용 가능. spike 결과는 connector 의 fetch sequence 만 결정.
+**Connector sequence 확정** (PR 16b — 4-5줄):
+
+```java
+HttpRequest req = HttpRequest.newBuilder()
+    .uri("https://ecc.ssu.ac.kr:8443/sap/bc/webdynpro/SAP/ZCMW2102")
+    .header("Cookie", buildCookieHeader(portalCookies))   // SaintSessionStore lookup
+    .header("Accept", "text/html")
+    .GET()
+    .build();
+HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+Document doc = Jsoup.parse(res.body());
+Elements rows = doc.select("tbody[id$=-contentTBody] tr[rt=1]");
+// ... parse each row's td[role=gridcell] cells → ScheduleEntry DTOs
+```
+
+추가 follow-up (PR 16b 첫 cut 이후 enhancement, 별도 PR):
+
+- redirect 자동 follow (SAP 가 `;sap-ext-sid=...` 박힌 URL 로 302 할
+  가능성) — `HttpClient.Redirect.NORMAL` 만 설정하면 됨
+- 학기 / 학년도 dropdown 의 현재 선택값 parsing — `<select>` 또는
+  `<input>` hidden 의 value 에서 추출하면 응답이 어느 학기 시간표인지
+  맥락 포함 가능
+- 학기 변경 query (현재 학기 외 과거 학기 시간표 fetch) — POST 로
+  `sap-wd-secure-id` + SAPEVENTQUEUE 보내야 함. 시나리오 (b) 쪽 경로.
+  Phase 4 candidate.
 
 ## 4. Architecture
 

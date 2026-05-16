@@ -5,6 +5,18 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: **Task 16 PR 16a — 시나리오 (a) RESOLVED**. ZCMW2102 첫
+  GET response body (gzip 8.3KB, 압축 풀면 96KB) 안에 시간표 표
+  markup 이 직접 포함됨을 확인 (`contentTBody` / `<tbody>` / `<form
+  action=...;sap-ext-sid=...>` / `sap-wd-secure-id` 모두 동시 검출).
+  즉 WebDynpro partial XHR delta / SAPEVENTQUEUE round-trip 불필요 —
+  connector 는 단순 GET 한 번 (cookies 첨부) → Jsoup parse → DTO.
+  spec §3.3 가 그 sequence 4-5줄 의사코드로 잠금. PR 16b 의 첫 cut
+  scope 가 확정: `SaintScheduleConnector` + `MockSaintScheduleConnector`
+  + `RealSaintScheduleConnector` + `SaintScheduleService` +
+  `SaintScheduleController` + `SaintScheduleMcpTool` + fixture-기반
+  parser unit tests. 학기 변경 (과거 학기 시간표 조회) 은 시나리오
+  (b) 경로라 follow-up.
 - 2026-05-16: **Task 16 PR 16a — endpoint/host 정정**. 1차 spike 의
   `zcmw9001n` 추측 틀림. 사용자가 브라우저 Network 탭 → ZCMW2102 row
   의 "Copy as cURL" 결과를 paste 한 진단에서 4가지 사실 확정:
