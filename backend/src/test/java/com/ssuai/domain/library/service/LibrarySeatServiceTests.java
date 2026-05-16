@@ -2,6 +2,8 @@ package com.ssuai.domain.library.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -29,21 +31,21 @@ class LibrarySeatServiceTests {
     void delegatesToCacheForRequestedFloor() {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
         LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F4);
-        when(cache.get(LibraryFloor.F4)).thenReturn(stub);
+        when(cache.get(eq(LibraryFloor.F4), any())).thenReturn(stub);
         LibrarySeatService service = mockModeService(cache, new LibrarySessionStore(defaultProperties()));
 
         LibrarySeatStatusResponse response = service.getSeatStatus(LibraryFloor.F4);
 
         assertThat(response).isSameAs(stub);
         ArgumentCaptor<LibraryFloor> floorCaptor = ArgumentCaptor.forClass(LibraryFloor.class);
-        verify(cache).get(floorCaptor.capture());
+        verify(cache).get(floorCaptor.capture(), any());
         assertThat(floorCaptor.getValue()).isEqualTo(LibraryFloor.F4);
     }
 
     @Test
     void connectorExceptionBubblesUpWithoutWrapping() {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
-        when(cache.get(LibraryFloor.F4)).thenThrow(new ConnectorTimeoutException());
+        when(cache.get(eq(LibraryFloor.F4), any())).thenThrow(new ConnectorTimeoutException());
         LibrarySeatService service = mockModeService(cache, new LibrarySessionStore(defaultProperties()));
 
         assertThatThrownBy(() -> service.getSeatStatus(LibraryFloor.F4))
@@ -55,7 +57,7 @@ class LibrarySeatServiceTests {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
         LibrarySessionStore store = new LibrarySessionStore(defaultProperties());
         LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F4);
-        when(cache.get(LibraryFloor.F4)).thenReturn(stub);
+        when(cache.get(eq(LibraryFloor.F4), any())).thenReturn(stub);
         LibrarySeatService service = new LibrarySeatService(cache, store, "mock");
 
         assertThat(service.isAuthRequired()).isFalse();
@@ -81,7 +83,7 @@ class LibrarySeatServiceTests {
         LibrarySessionStore store = new LibrarySessionStore(defaultProperties());
         store.put(SESSION_KEY, TOKEN);
         LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F4);
-        when(cache.get(LibraryFloor.F4)).thenReturn(stub);
+        when(cache.get(eq(LibraryFloor.F4), any())).thenReturn(stub);
         LibrarySeatService service = new LibrarySeatService(cache, store, "real");
 
         assertThat(service.getSeatStatusForSession(LibraryFloor.F4, SESSION_KEY)).isSameAs(stub);

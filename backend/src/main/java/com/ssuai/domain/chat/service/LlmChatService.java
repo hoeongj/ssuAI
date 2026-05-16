@@ -43,10 +43,13 @@ import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
 import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
 import com.ssuai.domain.chat.service.llm.LlmProvider;
 import com.ssuai.domain.chat.service.llm.LlmProviderException;
+import com.ssuai.domain.library.mcp.LibraryToolContext;
+import com.ssuai.domain.library.service.LibraryLoansService;
 import com.ssuai.domain.lms.service.LmsAssignmentsService;
 import com.ssuai.domain.saint.service.SaintGradesService;
 import com.ssuai.domain.saint.service.SaintScheduleService;
 import com.ssuai.global.exception.ChatUnavailableException;
+import com.ssuai.global.exception.LibraryAuthRequiredException;
 import com.ssuai.global.exception.LmsSessionExpiredException;
 import com.ssuai.global.exception.SaintSessionExpiredException;
 
@@ -81,6 +84,11 @@ public class LlmChatService implements ChatService {
               과목명·제목·유형·마감일이 포함. 사용자가 "과제", "LMS", "제출 안 한 거"
               같은 식으로 물으면 호출해. LMS 로그인이 안 된 경우 재로그인 안내.
 
+            인증된 본인 데이터 (도서관 세션 연동 필요):
+            - 내 도서관 대출 현황 (get_my_library_loans) — 현재 대출 도서 목록, 반납 기한,
+              연장 가능 여부. 사용자가 "대출", "반납", "연장", "도서관 빌린 책"
+              같은 식으로 물으면 호출해. 도서관 세션이 없는 경우 연동 방법 안내.
+
             행동 원칙:
             1. 모호한 질문도 일단 가장 그럴듯한 가정으로 즉시 도구를 불러. 되묻기는
                최후 수단이야. 예: "오늘 학식 뭐야?" → 식당을 안 골라줬다면 학생식당으로
@@ -105,7 +113,7 @@ public class LlmChatService implements ChatService {
             """;
 
     private static final String SCOPE_GUIDANCE =
-            "아직은 그 정보는 지원하지 않아요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색, 그리고 (로그인된 경우) 본인 시간표·성적·LMS 과제를 도와줄 수 있어요.";
+            "아직은 그 정보는 지원하지 않아요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색, 그리고 (로그인된 경우) 본인 시간표·성적·LMS 과제·도서관 대출 현황을 도와줄 수 있어요.";
 
     private static final String SECRET_GUIDANCE =
             "비밀번호, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
@@ -122,6 +130,9 @@ public class LlmChatService implements ChatService {
     private static final String LMS_SESSION_EXPIRED_GUIDANCE =
             "LMS 세션이 만료됐어요. LMS(SmartID)로 다시 로그인하고 물어봐 주세요.";
 
+    private static final String LIBRARY_SESSION_GUIDANCE =
+            "도서관 세션 연동이 필요한 정보예요. 도서관 좌석 현황 카드에서 '도서관 연동' 버튼을 누르고 Pyxis-Auth-Token 을 붙여넣어 주세요.";
+
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Locale KOREAN = Locale.KOREAN;
 
@@ -136,6 +147,7 @@ public class LlmChatService implements ChatService {
     private final SaintScheduleService scheduleService;
     private final SaintGradesService gradesService;
     private final LmsAssignmentsService lmsAssignmentsService;
+    private final LibraryLoansService libraryLoansService;
     private final Clock clock;
     private volatile List<OpenAiChatCompletionRequest.Tool> cachedChatTools;
 
@@ -150,10 +162,12 @@ public class LlmChatService implements ChatService {
             SaintScheduleService scheduleService,
             SaintGradesService gradesService,
             LmsAssignmentsService lmsAssignmentsService,
+            LibraryLoansService libraryLoansService,
             @Lazy List<McpSyncClient> mcpClients
     ) {
         this(properties, providers, objectMapper, conversationStore,
-                scheduleService, gradesService, lmsAssignmentsService, mcpClients, Clock.system(KST));
+                scheduleService, gradesService, lmsAssignmentsService, libraryLoansService,
+                mcpClients, Clock.system(KST));
     }
 
     LlmChatService(
@@ -164,6 +178,7 @@ public class LlmChatService implements ChatService {
             SaintScheduleService scheduleService,
             SaintGradesService gradesService,
             LmsAssignmentsService lmsAssignmentsService,
+            LibraryLoansService libraryLoansService,
             List<McpSyncClient> mcpClients,
             Clock clock
     ) {
@@ -175,6 +190,7 @@ public class LlmChatService implements ChatService {
         this.scheduleService = scheduleService;
         this.gradesService = gradesService;
         this.lmsAssignmentsService = lmsAssignmentsService;
+        this.libraryLoansService = libraryLoansService;
         this.mcpClients = mcpClients;
         this.clock = clock;
     }
@@ -292,7 +308,9 @@ public class LlmChatService implements ChatService {
         try (com.ssuai.domain.saint.mcp.SaintToolContext.Scope ignored =
                      com.ssuai.domain.saint.mcp.SaintToolContext.withStudentId(studentId);
              com.ssuai.domain.lms.mcp.LmsToolContext.Scope ignoredLms =
-                     com.ssuai.domain.lms.mcp.LmsToolContext.withStudentId(studentId)) {
+                     com.ssuai.domain.lms.mcp.LmsToolContext.withStudentId(studentId);
+             LibraryToolContext.Scope ignoredLibrary =
+                     LibraryToolContext.withSessionKey(LibraryToolContext.currentSessionKey())) {
             for (int index = 0; index < toolCalls.size(); index++) {
                 OpenAiToolCall toolCall = toolCalls.get(index);
                 String toolCallId = toolCall.id() == null || toolCall.id().isBlank()
@@ -507,6 +525,9 @@ public class LlmChatService implements ChatService {
                         toolName, studentId, () -> gradesService.fetchGrades(studentId));
                 case "get_my_assignments" -> dispatchPrivateLmsTool(
                         toolName, studentId, () -> lmsAssignmentsService.fetchAssignments(studentId));
+                case "get_my_library_loans" -> dispatchPrivateLibraryTool(
+                        toolName, () -> libraryLoansService.getLoansForSession(
+                                LibraryToolContext.currentSessionKey()));
                 default -> toolError("지원하지 않는 도구입니다: " + toolName);
             };
         } catch (IllegalArgumentException | IllegalStateException exception) {
@@ -579,6 +600,30 @@ public class LlmChatService implements ChatService {
         }
     }
 
+    private String dispatchPrivateLibraryTool(
+            String toolName,
+            java.util.function.Supplier<Object> serviceCall
+    ) {
+        String sessionKey = LibraryToolContext.currentSessionKey();
+        if (sessionKey == null || sessionKey.isBlank()) {
+            log.info("chat private tool refused: tool={} reason=no-library-session", toolName);
+            return toolError(LIBRARY_SESSION_GUIDANCE);
+        }
+        String sessionFp = com.ssuai.domain.library.auth.LibrarySessionStore.fingerprint(sessionKey);
+        log.info("chat private tool requested: tool={} sessionFp={}", toolName, sessionFp);
+        try {
+            Object response = serviceCall.get();
+            String json = objectMapper.writeValueAsString(response);
+            log.info("chat private tool completed: tool={} sessionFp={}", toolName, sessionFp);
+            return compactAndCap(toolName, json);
+        } catch (LibraryAuthRequiredException exception) {
+            log.info("chat private tool auth: tool={} sessionFp={}", toolName, sessionFp);
+            return toolError(LIBRARY_SESSION_GUIDANCE);
+        } catch (JsonProcessingException exception) {
+            throw new ChatUnavailableException(exception);
+        }
+    }
+
     private Map<String, Object> restaurantArgs(OpenAiToolCall toolCall) {
         String restaurant = optionalArgument(toolCall, "restaurant").trim();
         if (restaurant.isBlank()) {
@@ -631,6 +676,7 @@ public class LlmChatService implements ChatService {
                 case "get_my_schedule" -> compactScheduleNode(tree);
                 case "get_my_grades" -> compactGradesNode(tree);
                 case "get_my_assignments" -> compactAssignmentsNode(tree);
+                case "get_my_library_loans" -> compactLoansNode(tree);
                 default -> tree;
             };
             return capLength(objectMapper.writeValueAsString(compacted));
@@ -818,6 +864,31 @@ public class LlmChatService implements ChatService {
                 compacted.add(ci);
             }
             compact.set("items", compacted);
+        }
+        return compact;
+    }
+
+    private ObjectNode compactLoansNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        compact.put("total", node.path("total").asInt(0));
+        JsonNode loans = node.path("loans");
+        if (loans.isArray()) {
+            compact.set("loans", filterArray(loans, this::compactLoanItemNode));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactLoanItemNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyTextIfPresent(node, compact, "title");
+        copyTextIfPresent(node, compact, "dueDate");
+        JsonNode overdue = node.get("isOverdue");
+        if (overdue != null && !overdue.isNull()) {
+            compact.put("isOverdue", overdue.asBoolean(false));
+        }
+        JsonNode renewable = node.get("isRenewable");
+        if (renewable != null && !renewable.isNull()) {
+            compact.put("isRenewable", renewable.asBoolean(false));
         }
         return compact;
     }

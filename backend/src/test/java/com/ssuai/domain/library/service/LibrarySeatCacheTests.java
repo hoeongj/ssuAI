@@ -32,9 +32,9 @@ class LibrarySeatCacheTests {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-15T10:00:00Z"));
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30), clock);
 
-        LibrarySeatStatusResponse first = cache.get(LibraryFloor.F4);
+        LibrarySeatStatusResponse first = cache.get(LibraryFloor.F4, null);
         clock.advance(Duration.ofSeconds(20));
-        LibrarySeatStatusResponse second = cache.get(LibraryFloor.F4);
+        LibrarySeatStatusResponse second = cache.get(LibraryFloor.F4, null);
 
         assertThat(second).isSameAs(first);
         assertThat(connector.callsFor(LibraryFloor.F4)).isEqualTo(1);
@@ -46,9 +46,9 @@ class LibrarySeatCacheTests {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-15T10:00:00Z"));
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30), clock);
 
-        cache.get(LibraryFloor.F4);
+        cache.get(LibraryFloor.F4, null);
         clock.advance(Duration.ofSeconds(31));
-        cache.get(LibraryFloor.F4);
+        cache.get(LibraryFloor.F4, null);
 
         assertThat(connector.callsFor(LibraryFloor.F4)).isEqualTo(2);
     }
@@ -59,9 +59,9 @@ class LibrarySeatCacheTests {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-15T10:00:00Z"));
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30), clock);
 
-        cache.get(LibraryFloor.F1);
-        cache.get(LibraryFloor.F2);
-        cache.get(LibraryFloor.F1);
+        cache.get(LibraryFloor.F1, null);
+        cache.get(LibraryFloor.F2, null);
+        cache.get(LibraryFloor.F1, null);
 
         assertThat(connector.callsFor(LibraryFloor.F1)).isEqualTo(1);
         assertThat(connector.callsFor(LibraryFloor.F2)).isEqualTo(1);
@@ -75,10 +75,10 @@ class LibrarySeatCacheTests {
         ExecutorService pool = Executors.newFixedThreadPool(4);
         try {
             List<CompletableFuture<LibrarySeatStatusResponse>> futures = List.of(
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4), pool),
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4), pool),
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4), pool),
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4), pool)
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool),
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool),
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool),
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool)
             );
             // Give the threads time to all reach the in-flight gate before releasing.
             assertThat(connector.awaitWaiter(5, TimeUnit.SECONDS)).isTrue();
@@ -100,10 +100,10 @@ class LibrarySeatCacheTests {
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30),
                 Clock.fixed(Instant.parse("2026-05-15T10:00:00Z"), ZoneOffset.UTC));
 
-        assertThatThrownBy(() -> cache.get(LibraryFloor.F4))
+        assertThatThrownBy(() -> cache.get(LibraryFloor.F4, null))
                 .isInstanceOf(ConnectorTimeoutException.class);
         connector.recover(stubResponse(LibraryFloor.F4));
-        LibrarySeatStatusResponse recovered = cache.get(LibraryFloor.F4);
+        LibrarySeatStatusResponse recovered = cache.get(LibraryFloor.F4, null);
 
         assertThat(recovered).isNotNull();
         assertThat(connector.callCount()).isEqualTo(2);
@@ -156,7 +156,7 @@ class LibrarySeatCacheTests {
         private final AtomicInteger f4Calls = new AtomicInteger();
 
         @Override
-        public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor) {
+        public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token) {
             counterFor(floor).incrementAndGet();
             return stubResponse(floor);
         }
@@ -182,7 +182,7 @@ class LibrarySeatCacheTests {
         private final AtomicInteger invocations = new AtomicInteger();
 
         @Override
-        public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor) {
+        public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token) {
             int call = invocations.incrementAndGet();
             waiters.countDown();
             try {
@@ -217,7 +217,7 @@ class LibrarySeatCacheTests {
         private final AtomicReference<LibrarySeatStatusResponse> recovery = new AtomicReference<>();
 
         @Override
-        public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor) {
+        public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token) {
             callCount.incrementAndGet();
             LibrarySeatStatusResponse next = recovery.get();
             if (next != null) {

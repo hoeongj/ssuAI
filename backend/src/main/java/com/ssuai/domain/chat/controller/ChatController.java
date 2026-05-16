@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ssuai.domain.chat.dto.ChatRequest;
 import com.ssuai.domain.chat.dto.ChatResponse;
 import com.ssuai.domain.chat.service.ChatService;
+import com.ssuai.domain.library.mcp.LibraryToolContext;
 import com.ssuai.global.auth.AuthAttributes;
 import com.ssuai.global.response.ApiResponse;
 
@@ -35,8 +36,11 @@ public class ChatController {
             HttpServletRequest httpRequest) {
         String conversationId = resolveConversationId(request.conversationId());
         String studentId = (String) httpRequest.getAttribute(AuthAttributes.STUDENT_ID);
-        ChatResponse response = chatService.reply(conversationId, request.message(), studentId);
-        return ApiResponse.success(response);
+        String sessionKey = httpRequest.getSession().getId();
+        try (LibraryToolContext.Scope ignored = LibraryToolContext.withSessionKey(sessionKey)) {
+            ChatResponse response = chatService.reply(conversationId, request.message(), studentId);
+            return ApiResponse.success(response);
+        }
     }
 
     private static String resolveConversationId(String conversationId) {

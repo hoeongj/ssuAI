@@ -17,7 +17,7 @@ class MockLibrarySeatConnectorTests {
     @ParameterizedTest
     @EnumSource(LibraryFloor.class)
     void everyFloorReturnsConsistentSnapshot(LibraryFloor floor) {
-        LibrarySeatStatusResponse response = connector.fetchSeatStatus(floor);
+        LibrarySeatStatusResponse response = connector.fetchSeatStatus(floor, null);
 
         assertThat(response.floor()).isEqualTo(floor.code());
         assertThat(response.floorLabel()).isEqualTo(floor.displayLabel());
@@ -39,7 +39,7 @@ class MockLibrarySeatConnectorTests {
 
     @Test
     void floorFourPreservesIndividualSeatIdsForPhaseFourReservation() {
-        LibrarySeatStatusResponse response = connector.fetchSeatStatus(LibraryFloor.F4);
+        LibrarySeatStatusResponse response = connector.fetchSeatStatus(LibraryFloor.F4, null);
 
         boolean anyZoneHasSeatIds = response.zones().stream()
                 .anyMatch(zone -> !zone.seatIds().isEmpty());
