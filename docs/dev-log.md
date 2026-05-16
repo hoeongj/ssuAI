@@ -5,6 +5,15 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: **Task 16 LLM 본문 누출 가드 잠금** (spec §6 #6 / §8). `LlmChatService.compactAndCap`
+  에 `get_my_grades` / `get_my_schedule` 분기 추가. grades = `{count, link}`
+  만 (history/GPA/과목명/점수/등급/교수명/석차 모두 strip), schedule =
+  compact row (dayOfWeek·period·course·room 만, dayLabel/timeRange/professor
+  strip — spec §6 #6 "월 1교시 알고리즘 / 정보과학관 401" format). 단위
+  테스트 3개로 본문이 LLM 토큰 스트림에 들어가지 않게 영구 고정. `executeToolCall`
+  case 와 MCP tool 등록은 별 PR (handoff doc follow-up #1) — chat thread-local
+  pattern 갖춰진 뒤. 본 PR 은 compact 정책만 미리 잠가서 추후 wiring 시
+  자동으로 안전한 형태로만 LLM 에 보냄.
 - 2026-05-16: **Task 16 PR 16c-B 빨강 3개 fix → green**. (1) `grades-prev-success.html`
   placeholder tbody id `WD65-contentTBody-placeholder` → `WD65-contentTBody`
   (parser selector `tbody[id$=-contentTBody]` 매칭 필요, suffix 가 핵심).

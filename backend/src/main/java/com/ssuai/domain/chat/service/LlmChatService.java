@@ -487,7 +487,7 @@ public class LlmChatService implements ChatService {
         return buffer.toString();
     }
 
-    private String compactAndCap(String toolName, String rawJsonText) {
+    String compactAndCap(String toolName, String rawJsonText) {
         try {
             JsonNode tree = objectMapper.readTree(rawJsonText);
             JsonNode compacted = switch (toolName) {
@@ -496,6 +496,8 @@ public class LlmChatService implements ChatService {
                 case "search_campus_facilities" -> compactFacilityListNode(tree);
                 case "get_library_seat_status" -> compactLibrarySeatNode(tree);
                 case "search_library_book" -> compactLibraryBookSearchNode(tree);
+                case "get_my_schedule" -> compactScheduleNode(tree);
+                case "get_my_grades" -> compactGradesNode(tree);
                 default -> tree;
             };
             return capLength(objectMapper.writeValueAsString(compacted));
@@ -587,6 +589,83 @@ public class LlmChatService implements ChatService {
         copyIntIfPresent(node, compact, "available");
         copyNonEmptyArray(node, compact, "seatIds");
         return compact;
+    }
+
+    /**
+     * Schedule rows are allowed in LLM prompts in a compact row format
+     * (Task 16 spec §6 #6 — "월 1교시 알고리즘 / 정보과학관 401"). Strip
+     * fields the chat answer never needs (dayLabel — derivable from
+     * dayOfWeek, timeRange — derivable from period, professor — not
+     * required to answer "내일 1교시 뭐야?"). Keeping the input format
+     * tight makes the LLM prompt budget predictable and limits the
+     * cross-trust-boundary surface area.
+     */
+    private ObjectNode compactScheduleNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyIntIfPresent(node, compact, "enrollmentYear");
+        copyIntIfPresent(node, compact, "currentYear");
+        copyIntIfPresent(node, compact, "currentTerm");
+        JsonNode terms = node.get("terms");
+        if (terms != null && terms.isArray()) {
+            compact.set("terms", filterArray(terms, this::compactTermScheduleNode));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactTermScheduleNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyIntIfPresent(node, compact, "year");
+        copyIntIfPresent(node, compact, "term");
+        JsonNode entries = node.get("entries");
+        if (entries != null && entries.isArray()) {
+            compact.set("entries", filterArray(entries, this::compactScheduleEntryNode));
+        }
+        return compact;
+    }
+
+    private ObjectNode compactScheduleEntryNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        copyIntIfPresent(node, compact, "dayOfWeek");
+        copyIntIfPresent(node, compact, "period");
+        copyTextIfPresent(node, compact, "course");
+        copyTextIfPresent(node, compact, "room");
+        return compact;
+    }
+
+    /**
+     * Grades NEVER cross into LLM prompts (Task 16 spec §6 #6 locked-in
+     * decision + security checklist §8). The chat path answers grade
+     * questions with a citation — "성적 페이지에서 N과목 확인 가능합니다"
+     * + a link — never the rows themselves. This compact branch enforces
+     * that: regardless of what the upstream tool returned, only
+     * {@code count} (total course rows across every term) and {@code link}
+     * (the deep link the controller serves on) reach the LLM. Per-term
+     * GPA, course names, scores, grade letters, professor names — all
+     * dropped here, by design.
+     */
+    private ObjectNode compactGradesNode(JsonNode node) {
+        ObjectNode compact = objectMapper.createObjectNode();
+        compact.put("count", countGradeCourses(node));
+        compact.put("link", "/grades");
+        return compact;
+    }
+
+    private static int countGradeCourses(JsonNode node) {
+        if (node == null) {
+            return 0;
+        }
+        JsonNode detailsByTerm = node.get("detailsByTerm");
+        if (detailsByTerm == null || !detailsByTerm.isObject()) {
+            return 0;
+        }
+        int total = 0;
+        for (Iterator<JsonNode> iterator = detailsByTerm.elements(); iterator.hasNext(); ) {
+            JsonNode rows = iterator.next();
+            if (rows != null && rows.isArray()) {
+                total += rows.size();
+            }
+        }
+        return total;
     }
 
     private ObjectNode compactLibraryBookSearchNode(JsonNode node) {

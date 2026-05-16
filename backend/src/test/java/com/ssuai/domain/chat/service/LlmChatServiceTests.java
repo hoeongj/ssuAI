@@ -381,6 +381,156 @@ class LlmChatServiceTests {
                 .doesNotContain("비밀번호");
     }
 
+    /**
+     * Pins Task 16 spec §6 #6 — grades NEVER cross into LLM prompts. The
+     * upstream {@code GradesResponse} JSON carries per-term GPA, course
+     * names, scores, grade letters, professor names, rank fractions —
+     * none of those may leak through the compact step. Only a course
+     * count + a deep link reach the LLM.
+     */
+    @Test
+    void gradesCompactStripsAllGradeRowsAndKeepsOnlyCountAndLink() {
+        LlmChatService chatService = chatService(
+                List.of(new FakeProvider("noop").reply("noop", "noop")),
+                List.of("noop"));
+        String rawGradesJson = """
+                {
+                  "history":[
+                    {"year":2025,"term":"2학기","requestedCredits":18.0,"earnedCredits":18.0,
+                     "passFailCredits":3.0,"gpa":3.50,"gpaSum":63.00,"arithmeticAverage":85.00,
+                     "rankInTerm":"50/100","rankOverall":"60/100",
+                     "academicWarning":false,"counseling":false,"repeatedYear":false}
+                  ],
+                  "academicRecord":{"requestedCredits":75.0,"earnedCredits":75.0,
+                                    "gpaSum":262.50,"gpa":3.50,"arithmeticAverage":85.00,"passFailCredits":12.0},
+                  "certificate":{"requestedCredits":72.0,"earnedCredits":72.0,
+                                 "gpaSum":252.00,"gpa":3.50,"arithmeticAverage":85.00,"passFailCredits":12.0},
+                  "detailsByTerm":{
+                    "2025-2학기":[
+                      {"score":"95","grade":"A0","courseName":"운영체제","courseCode":"21500001",
+                       "credits":3.0,"professor":"김교수","remark":""},
+                      {"score":"88","grade":"B+","courseName":"알고리즘","courseCode":"21500002",
+                       "credits":3.0,"professor":"이교수","remark":""}
+                    ]
+                  }
+                }
+                """;
+
+        String compact = chatService.compactAndCap("get_my_grades", rawGradesJson);
+
+        // 본문 누출 절대 금지 — GPA, 과목명, 점수, 등급, 교수명, 학점, 석차 어느 것도 통과 X
+        assertThat(compact)
+                .doesNotContain("3.50")
+                .doesNotContain("3.5")
+                .doesNotContain("262.50")
+                .doesNotContain("85.00")
+                .doesNotContain("75.0")
+                .doesNotContain("18.0")
+                .doesNotContain("95")
+                .doesNotContain("88")
+                .doesNotContain("A0")
+                .doesNotContain("B+")
+                .doesNotContain("운영체제")
+                .doesNotContain("알고리즘")
+                .doesNotContain("21500001")
+                .doesNotContain("21500002")
+                .doesNotContain("김교수")
+                .doesNotContain("이교수")
+                .doesNotContain("50/100")
+                .doesNotContain("60/100")
+                .doesNotContain("history")
+                .doesNotContain("academicRecord")
+                .doesNotContain("certificate")
+                .doesNotContain("detailsByTerm");
+        // 허용 — 코스 수 + deep link 만
+        assertThat(compact)
+                .contains("\"count\":2")
+                .contains("\"link\":\"/grades\"");
+    }
+
+    @Test
+    void gradesCompactReturnsZeroCountWhenDetailsByTermIsEmpty() {
+        LlmChatService chatService = chatService(
+                List.of(new FakeProvider("noop").reply("noop", "noop")),
+                List.of("noop"));
+        String rawGradesJson = """
+                {
+                  "history":[
+                    {"year":2025,"term":"2학기","requestedCredits":18.0,"earnedCredits":18.0,
+                     "passFailCredits":3.0,"gpa":3.50,"gpaSum":63.00,"arithmeticAverage":85.00,
+                     "rankInTerm":"50/100","rankOverall":"60/100",
+                     "academicWarning":false,"counseling":false,"repeatedYear":false}
+                  ],
+                  "academicRecord":{"requestedCredits":75.0,"earnedCredits":75.0,
+                                    "gpaSum":262.50,"gpa":3.50,"arithmeticAverage":85.00,"passFailCredits":12.0},
+                  "certificate":{"requestedCredits":72.0,"earnedCredits":72.0,
+                                 "gpaSum":252.00,"gpa":3.50,"arithmeticAverage":85.00,"passFailCredits":12.0},
+                  "detailsByTerm":{}
+                }
+                """;
+
+        String compact = chatService.compactAndCap("get_my_grades", rawGradesJson);
+
+        assertThat(compact)
+                .contains("\"count\":0")
+                .contains("\"link\":\"/grades\"")
+                .doesNotContain("3.50")
+                .doesNotContain("history");
+    }
+
+    /**
+     * Pins Task 16 spec §6 #6 — schedule rows ARE allowed in LLM prompts
+     * but only in a tight compact format. Strip fields the chat answer
+     * never needs (dayLabel — derivable from dayOfWeek, timeRange —
+     * derivable from period, professor — not required to answer "내일
+     * 1교시 뭐야?"). Keep dayOfWeek/period/course/room.
+     */
+    @Test
+    void scheduleCompactKeepsCompactRowAndStripsProfessorTimeRangeAndDayLabel() {
+        LlmChatService chatService = chatService(
+                List.of(new FakeProvider("noop").reply("noop", "noop")),
+                List.of("noop"));
+        String rawScheduleJson = """
+                {
+                  "enrollmentYear":2022,
+                  "currentYear":2025,
+                  "currentTerm":2,
+                  "terms":[
+                    {"year":2025,"term":2,"entries":[
+                      {"dayOfWeek":1,"dayLabel":"월","period":1,"timeRange":"09:00-09:50",
+                       "course":"운영체제","professor":"김교수","room":"정보과학관 401"},
+                      {"dayOfWeek":3,"dayLabel":"수","period":3,"timeRange":"10:30-11:45",
+                       "course":"알고리즘","professor":"이교수","room":"정보과학관 30100 (강의실A)"}
+                    ]}
+                  ]
+                }
+                """;
+
+        String compact = chatService.compactAndCap("get_my_schedule", rawScheduleJson);
+
+        // 허용 — compact row format (요일·교시·과목·강의실)
+        assertThat(compact)
+                .contains("\"enrollmentYear\":2022")
+                .contains("\"currentYear\":2025")
+                .contains("\"currentTerm\":2")
+                .contains("\"year\":2025")
+                .contains("\"term\":2")
+                .contains("\"dayOfWeek\":1")
+                .contains("\"period\":1")
+                .contains("\"course\":\"운영체제\"")
+                .contains("\"room\":\"정보과학관 401\"")
+                .contains("\"course\":\"알고리즘\"");
+        // 차단 — chat 답변에 필요 없는 메타
+        assertThat(compact)
+                .doesNotContain("dayLabel")
+                .doesNotContain("timeRange")
+                .doesNotContain("09:00-09:50")
+                .doesNotContain("10:30-11:45")
+                .doesNotContain("professor")
+                .doesNotContain("김교수")
+                .doesNotContain("이교수");
+    }
+
     private static org.mockito.ArgumentMatcher<McpSchema.CallToolRequest> named(String toolName) {
         return request -> request != null && toolName.equals(request.name());
     }
