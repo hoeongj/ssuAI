@@ -5,6 +5,18 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: **PR #116 — SmartID prod 완전 동작**. PR #114 SameSite=None
+  으로도 풀리지 않던 "세션 갱신 실패" root cause 가 별개 layer 였음:
+  backend CORS 의 `.allowCredentials(false)` 때문에 응답에 `Access-Control-Allow-Credentials:
+  true` 가 안 붙어 브라우저가 200 OK response body 를 JS 한테 차단. frontend
+  `fetchJson` 이 `INVALID_ENVELOPE` throw → `useSaintAuth.refresh()` false
+  → 세션 실패 메시지. set-cookie 는 정상 저장되고 backend 로그도 200 으로
+  정상 처리된 것처럼 보여 디버깅 단서가 frontend Console 의 CORS 경고
+  하나뿐이었음. `ApiCorsDefaults.java:15` `false` → `true` 한 줄 + 회귀
+  방지 테스트 2개. allowedOrigins 가 explicit origin 이라 Spring validator
+  통과. PR #116 머지 + kubectl set image `sha-1031de0…` → 대시보드 "안녕하세요,
+  홍성주 학생" 까지 prod end-to-end 첫 성공. SmartID 라이브 데모 portfolio
+  핵심 deliverable 가용. 자세한 회고는 TROUBLESHOOTING.md.
 - 2026-05-16: **PR #112 follow-up** — 첫 parser 재작성 (`.main_box09
   .box_top .main_title span` + `<dt>→<dd>` key map) 도 여전히
   `missing name element` 떴음. 사용자 paste 한 portal main page 전체

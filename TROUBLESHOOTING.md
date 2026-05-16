@@ -100,6 +100,67 @@
 
 ---
 
+## 2026-05-16 — 200 OK 인데 frontend 가 "세션 갱신 실패": CORS `Access-Control-Allow-Credentials` 누락
+
+- 맥락: PR #112/#113 portal parser fix, PR #114 refresh cookie
+  `SameSite=None` 까지 머지하고 SmartID 로그인 prod 재시도. SmartID →
+  callback → `/auth/return?ok=1` 까지는 도달하는데 화면이 계속 "SSO
+  는 통과했지만 ssuAI 세션 갱신에 실패했습니다" 에서 멈춤.
+- 증상:
+  - 사용자: `/auth/return?ok=1` 페이지에서 "세션 갱신 실패" 메시지.
+  - backend 로그 `kubectl logs … --since=3m` 또는 `--tail=100` 어디에도
+    `/api/auth/refresh` 흔적이 안 나옴. 보이는 HTTP 트래픽은 MCP SSE
+    initialize 뿐.
+  - 브라우저 Network 탭에서 `POST /api/auth/refresh` row 자체는
+    존재하고 **Status 200 OK**, 응답 헤더에 `set-cookie:
+    ssuai_refresh=…; SameSite=None; Secure; HttpOnly` 정상 발급.
+    그러나 직후 일어나야 할 `GET /api/auth/me` 호출이 Network 에 안
+    뜸 — frontend 가 refresh 응답을 받자마자 catch 블록으로 떨어지는
+    셈.
+- 원인: response 헤더에 `Access-Control-Allow-Credentials: true` 가
+  없음. fetch 가 `credentials: 'include'` 일 때 브라우저는:
+  1. request 에 cookie 를 실어 보내고 ✅
+  2. 응답의 set-cookie 도 정상 저장하지만 ✅
+  3. **JS 에는 response body 를 노출하지 않음** ❌
+  → frontend `fetchJson` 의 `await response.json()` 이 throw → `parseEnvelope`
+  null 반환 → `INVALID_ENVELOPE` ApiError throw → `useSaintAuth.refresh()`
+  catch 블록 → false 반환 → "세션 갱신 실패" 표시. `/api/auth/me` 는
+  호출 자체가 안 됨. backend 입장에서는 200 OK 로 정상 응답했기 때문에
+  서버 로그에 비정상 흔적이 없음. **삼중으로 헷갈리는 incident**:
+  (i) Network 탭은 200 으로 성공처럼 보이고, (ii) 쿠키는 실제로
+  저장되어 다음 시도에서 살아 있으며, (iii) backend 로그에는 에러
+  단서가 없음. Console 탭의 빨간 CORS 경고만이 유일한 단서.
+- 해결: `ApiCorsDefaults.java:15` `.allowCredentials(false)` →
+  `.allowCredentials(true)` (PR #116). `allowedOrigins` 가 와일드카드가
+  아닌 명시적 origin (`https://ssuai.vercel.app` / `http://localhost:3000`)
+  이라 Spring `CorsConfiguration` validator 도 통과. 회귀 방지로
+  `WebCorsConfigTest` / `WebCorsProdConfigTest` 양쪽에 `config.getAllowCredentials()
+  == true` assertion 추가.
+- 검증:
+  - backend 전체 test BUILD SUCCESSFUL.
+  - PR #116 머지 + CI image-build + `kubectl set image …:sha-1031de0…` →
+    새 pod Ready.
+  - 브라우저: `https://ssuai.vercel.app/auth/login` → SmartID → 대시보드
+    "안녕하세요, 홍성주 학생" 표시 ✅. Network 탭에 이번엔 `/api/auth/refresh`
+    (200) **+ `/api/auth/me` (200)** 둘 다 보이고, 응답 헤더에 `access-control-allow-credentials:
+    true` 도 포함.
+- 포트폴리오 포인트:
+  - **CORS preflight 통과 + 200 응답 + set-cookie 동작 + body 접근
+    차단** 의 함정. CORS 규칙은 "request 가 도착하느냐" 뿐 아니라
+    "response 를 JS 가 읽을 수 있느냐" 까지 별도 gate. `allowCredentials(true)`
+    는 **반드시 explicit origin** 과 한 쌍으로 와야 하고 (와일드카드와
+    공존 시 브라우저가 거부), set-cookie 와 별개 정책이라 한쪽만
+    맞춰도 증상이 부분적으로만 풀림. 같은 세션에 SameSite=None (PR
+    #114) 으로 한 번 풀린 줄 알았는데 다음 layer 에 막혀 있었던 사례.
+  - **로그가 없는 incident 의 디버깅 순서** — backend 로그가 비어
+    있으면 "backend 가 안 받았다" 가 첫 가설이지만, Network 탭에
+    200 이 보이면 그 가설은 깨짐. 그 순간 frontend 의 response 처리
+    파이프라인 (특히 envelope validation 단계) 으로 시선을 옮기는 게
+    빠른 진단의 핵심. CORS console error 는 "Network 200, JS catch
+    block" 패턴의 정석 단서.
+
+---
+
 ## 2026-05-14 — 학식 데이터 매 요청 라이브 스크래핑 → 주간 배치 캐시로 전환
 
 - 맥락: 라이브 챗봇이 동작하기 시작한 직후 데이터 흐름을 점검하다가, 학생이 "오늘 학식 뭐야?" 하고 물어볼 때마다 `RealMealConnector` 가 `soongguri.com` 으로 4~6번의 Jsoup HTTP GET 을 매번 fan-out 하고 있다는 걸 확인. 학식 메뉴는 학교 측에서 주 1회 일괄 갱신되는데 호출은 매번 라이브였음.
