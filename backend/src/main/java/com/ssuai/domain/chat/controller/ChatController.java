@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ssuai.domain.chat.dto.ChatRequest;
 import com.ssuai.domain.chat.dto.ChatResponse;
 import com.ssuai.domain.chat.service.ChatService;
+import com.ssuai.global.auth.AuthAttributes;
 import com.ssuai.global.response.ApiResponse;
 
 @RestController
@@ -28,9 +30,12 @@ public class ChatController {
 
     @PostMapping
     @Operation(summary = "Send a message to the MVP chatbot")
-    public ApiResponse<ChatResponse> reply(@Valid @RequestBody ChatRequest request) {
+    public ApiResponse<ChatResponse> reply(
+            @Valid @RequestBody ChatRequest request,
+            HttpServletRequest httpRequest) {
         String conversationId = resolveConversationId(request.conversationId());
-        ChatResponse response = chatService.reply(conversationId, request.message());
+        String studentId = (String) httpRequest.getAttribute(AuthAttributes.STUDENT_ID);
+        ChatResponse response = chatService.reply(conversationId, request.message(), studentId);
         return ApiResponse.success(response);
     }
 

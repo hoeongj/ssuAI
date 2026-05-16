@@ -43,7 +43,10 @@ import com.ssuai.domain.chat.service.llm.LlmCompletionResult;
 import com.ssuai.domain.chat.service.llm.LlmPrivacyMode;
 import com.ssuai.domain.chat.service.llm.LlmProvider;
 import com.ssuai.domain.chat.service.llm.LlmProviderException;
+import com.ssuai.domain.saint.service.SaintGradesService;
+import com.ssuai.domain.saint.service.SaintScheduleService;
 import com.ssuai.global.exception.ChatUnavailableException;
+import com.ssuai.global.exception.SaintSessionExpiredException;
 
 @Service
 @ConditionalOnProperty(name = "ssuai.connector.chat", havingValue = "llm")
@@ -63,6 +66,14 @@ public class LlmChatService implements ChatService {
             - 중앙도서관 좌석 현황 (get_library_seat_status, floor 코드: -1 B1, 1~6 1~6층)
             - 중앙도서관 도서 검색 (search_library_book, 키워드로 제목/저자/출판 부분 일치)
 
+            인증된 본인 데이터 (u-SAINT 로그인 필요):
+            - 내 시간표 (get_my_schedule) — 학기별 강의 (요일·교시·과목·강의실).
+              사용자가 "내 시간표", "다음 1교시", "수요일 강의" 같은 식으로 물으면 호출해.
+            - 내 성적 (get_my_grades) — 누적 GPA + 학기별 과목 수.
+              **중요**: 응답은 `{count, link}` 만 와. 절대 점수/등급/과목명/GPA 수치를
+              만들어내지 마. 답은 "성적 페이지에서 N과목 확인 가능합니다 (링크 안내)"
+              형태로만 해. 본문 데이터는 사용자가 controller 페이지에서 직접 확인해.
+
             행동 원칙:
             1. 모호한 질문도 일단 가장 그럴듯한 가정으로 즉시 도구를 불러. 되묻기는
                최후 수단이야. 예: "오늘 학식 뭐야?" → 식당을 안 골라줬다면 학생식당으로
@@ -79,16 +90,24 @@ public class LlmChatService implements ChatService {
                말해. 다른 사이트 링크나 외부 추정 정보를 만들지 마.
 
             범위 밖 안내:
-            - 로그인, 성적, 시간표, LMS 과제, u-SAINT, 개인정보는 아직 지원 안 함.
+            - LMS 과제, 수강신청, 졸업요건 같은 시스템 연동은 아직 지원 안 함.
+            - get_my_schedule / get_my_grades 는 인증된 chat 세션에서만 동작.
+              로그인 안 한 사용자에게는 "u-SAINT 로그인이 필요합니다" 안내.
             - 비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 요구하지도 받지도
               마. 사용자가 입력하면 저장/반복하지 말고 지우라고 안내해.
             """;
 
     private static final String SCOPE_GUIDANCE =
-            "아직은 로그인 연동이 필요한 학사 정보는 못 가져와요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
+            "아직은 그 정보는 지원하지 않아요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색, 그리고 (로그인된 경우) 본인 시간표·성적 요약을 도와줄 수 있어요.";
 
     private static final String SECRET_GUIDANCE =
-            "비밀번호, 학번, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
+            "비밀번호, 쿠키, 세션, API key 같은 비밀 정보는 입력하지 말아주세요. 지금은 학식, 기숙사 식단, 캠퍼스 시설, 도서관 좌석/도서 검색만 도와줄 수 있어요.";
+
+    private static final String SAINT_SESSION_GUIDANCE =
+            "u-SAINT 로그인이 필요한 정보예요. 먼저 SmartID 로 로그인하고 다시 물어봐 주세요.";
+
+    private static final String SAINT_SESSION_EXPIRED_GUIDANCE =
+            "u-SAINT 세션이 만료됐어요. SmartID 로 다시 로그인하고 물어봐 주세요.";
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Locale KOREAN = Locale.KOREAN;
@@ -101,6 +120,8 @@ public class LlmChatService implements ChatService {
     private final Map<String, LlmProvider> providersByName;
     private final ObjectMapper objectMapper;
     private final ChatConversationStore conversationStore;
+    private final SaintScheduleService scheduleService;
+    private final SaintGradesService gradesService;
     private final Clock clock;
     private volatile List<OpenAiChatCompletionRequest.Tool> cachedChatTools;
 
@@ -112,9 +133,12 @@ public class LlmChatService implements ChatService {
             List<LlmProvider> providers,
             ObjectMapper objectMapper,
             ChatConversationStore conversationStore,
+            SaintScheduleService scheduleService,
+            SaintGradesService gradesService,
             @Lazy List<McpSyncClient> mcpClients
     ) {
-        this(properties, providers, objectMapper, conversationStore, mcpClients, Clock.system(KST));
+        this(properties, providers, objectMapper, conversationStore,
+                scheduleService, gradesService, mcpClients, Clock.system(KST));
     }
 
     LlmChatService(
@@ -122,6 +146,8 @@ public class LlmChatService implements ChatService {
             List<LlmProvider> providers,
             ObjectMapper objectMapper,
             ChatConversationStore conversationStore,
+            SaintScheduleService scheduleService,
+            SaintGradesService gradesService,
             List<McpSyncClient> mcpClients,
             Clock clock
     ) {
@@ -130,6 +156,8 @@ public class LlmChatService implements ChatService {
                 .collect(Collectors.toUnmodifiableMap(LlmProvider::name, Function.identity()));
         this.objectMapper = objectMapper;
         this.conversationStore = conversationStore;
+        this.scheduleService = scheduleService;
+        this.gradesService = gradesService;
         this.mcpClients = mcpClients;
         this.clock = clock;
     }
@@ -160,12 +188,12 @@ public class LlmChatService implements ChatService {
     }
 
     @Override
-    public ChatResponse reply(String conversationId, String message) {
+    public ChatResponse reply(String conversationId, String message, String studentId) {
         if (looksLikeSecretInput(message)) {
             // Never persist the user message: it may contain secrets.
             return new ChatResponse(conversationId, SECRET_GUIDANCE);
         }
-        if (looksLikePrivateAcademicRequest(message)) {
+        if (looksLikeOutOfScopeRequest(message)) {
             conversationStore.appendUser(conversationId, message);
             conversationStore.appendAssistant(conversationId, SCOPE_GUIDANCE);
             return new ChatResponse(conversationId, SCOPE_GUIDANCE);
@@ -173,13 +201,16 @@ public class LlmChatService implements ChatService {
 
         Instant startedAt = Instant.now();
         int messageLength = message == null ? 0 : message.length();
-        log.info("chat reply started: conversationId={} messageLength={}", conversationId, messageLength);
+        boolean authenticated = studentId != null && !studentId.isBlank();
+        log.info("chat reply started: conversationId={} messageLength={} authenticated={}",
+                conversationId, messageLength, authenticated);
 
         List<Turn> history = conversationStore.history(conversationId);
         conversationStore.appendUser(conversationId, message);
 
         try {
-            ChatResponse response = callLlm(conversationId, message, history, LlmPrivacyMode.PUBLIC);
+            ChatResponse response = callLlm(conversationId, message, history,
+                    LlmPrivacyMode.PUBLIC, studentId);
             conversationStore.appendAssistant(conversationId, response.reply());
             long latencyMs = Duration.between(startedAt, Instant.now()).toMillis();
             log.info("chat reply completed: conversationId={} messageLength={} latencyMs={} historyTurns={}",
@@ -202,7 +233,8 @@ public class LlmChatService implements ChatService {
             String conversationId,
             String message,
             List<Turn> history,
-            LlmPrivacyMode privacyMode
+            LlmPrivacyMode privacyMode,
+            String studentId
     ) {
         List<OpenAiChatCompletionRequest.Message> baseMessages = new ArrayList<>();
         baseMessages.add(OpenAiChatCompletionRequest.systemMessage(SYSTEM_PROMPT));
@@ -233,15 +265,25 @@ public class LlmChatService implements ChatService {
 
         List<OpenAiChatCompletionRequest.Message> messages = new ArrayList<>(baseMessages);
         messages.add(OpenAiChatCompletionRequest.assistantToolCallMessage(firstMessage.content(), toolCalls));
-        for (int index = 0; index < toolCalls.size(); index++) {
-            OpenAiToolCall toolCall = toolCalls.get(index);
-            String toolCallId = toolCall.id() == null || toolCall.id().isBlank()
-                    ? "call_" + index
-                    : toolCall.id();
-            String content = index < maxToolCalls()
-                    ? executeToolCall(toolCall)
-                    : toolError("한 번에 처리할 수 있는 도구 호출 수를 초과했습니다. 한두 가지씩 나눠서 물어봐 주세요.");
-            messages.add(OpenAiChatCompletionRequest.toolResultMessage(toolCallId, content));
+        // Bind the authenticated student id to the chat thread for the
+        // duration of the tool dispatch loop. The private MCP tools
+        // ({@code get_my_schedule}, {@code get_my_grades}) read it from
+        // SaintToolContext when invoked through the in-process MCP
+        // callback path; chat's direct-service short-circuit uses the
+        // local parameter, so the binding is also a safety net for
+        // future loopback routing changes.
+        try (com.ssuai.domain.saint.mcp.SaintToolContext.Scope ignored =
+                     com.ssuai.domain.saint.mcp.SaintToolContext.withStudentId(studentId)) {
+            for (int index = 0; index < toolCalls.size(); index++) {
+                OpenAiToolCall toolCall = toolCalls.get(index);
+                String toolCallId = toolCall.id() == null || toolCall.id().isBlank()
+                        ? "call_" + index
+                        : toolCall.id();
+                String content = index < maxToolCalls()
+                        ? executeToolCall(toolCall, studentId)
+                        : toolError("한 번에 처리할 수 있는 도구 호출 수를 초과했습니다. 한두 가지씩 나눠서 물어봐 주세요.");
+                messages.add(OpenAiChatCompletionRequest.toolResultMessage(toolCallId, content));
+            }
         }
 
         LlmCompletionResult finalResult = completeAcrossProviders(new LlmCompletionRequest(
@@ -406,7 +448,7 @@ public class LlmChatService implements ChatService {
         return mapped;
     }
 
-    private String executeToolCall(OpenAiToolCall toolCall) {
+    private String executeToolCall(OpenAiToolCall toolCall, String studentId) {
         String toolName = toolCall.function() == null ? "" : toolCall.function().name();
         try {
             return switch (toolName) {
@@ -440,10 +482,47 @@ public class LlmChatService implements ChatService {
                     optionalIntArgument(toolCall, "size").ifPresent(value -> args.put("size", value));
                     yield callMcp(toolName, args);
                 }
+                case "get_my_schedule" -> dispatchPrivateSaintTool(
+                        toolName, studentId, () -> scheduleService.fetchSchedule(studentId));
+                case "get_my_grades" -> dispatchPrivateSaintTool(
+                        toolName, studentId, () -> gradesService.fetchGrades(studentId));
                 default -> toolError("지원하지 않는 도구입니다: " + toolName);
             };
         } catch (IllegalArgumentException | IllegalStateException exception) {
             return toolError(exception.getMessage());
+        }
+    }
+
+    /**
+     * Run a u-SAINT private tool against the in-process service directly,
+     * bypassing the MCP SSE round-trip. The loopback {@code mcpClient}
+     * would dispatch the call to a separate servlet thread where
+     * {@code SaintToolContext} 's thread-local cannot reach; calling the
+     * service in-line keeps the authenticated student id local to the
+     * chat thread. Compact policy ({@code compactAndCap}) still runs on
+     * the way out, so the LLM never sees raw grade rows / schedule
+     * professor names.
+     */
+    private String dispatchPrivateSaintTool(
+            String toolName,
+            String studentId,
+            java.util.function.Supplier<Object> serviceCall
+    ) {
+        if (studentId == null || studentId.isBlank()) {
+            log.info("chat private tool refused: tool={} reason=unauthenticated", toolName);
+            return toolError(SAINT_SESSION_GUIDANCE);
+        }
+        try {
+            Object response = serviceCall.get();
+            String json = objectMapper.writeValueAsString(response);
+            log.info("chat private tool fetched: tool={} studentFp={}",
+                    toolName, com.ssuai.domain.auth.saint.SaintSessionStore.fingerprint(studentId));
+            return compactAndCap(toolName, json);
+        } catch (SaintSessionExpiredException exception) {
+            log.info("chat private tool expired: tool={}", toolName);
+            return toolError(SAINT_SESSION_EXPIRED_GUIDANCE);
+        } catch (JsonProcessingException exception) {
+            throw new ChatUnavailableException(exception);
         }
     }
 
@@ -828,15 +907,25 @@ public class LlmChatService implements ChatService {
         return toolCalls == null ? List.of() : toolCalls;
     }
 
-    private static boolean looksLikePrivateAcademicRequest(String message) {
+    /**
+     * Catches messages the chatbot can't usefully serve from any of its
+     * tools — LMS / 수강신청 / 졸업요건 / 개인정보 — and short-circuits
+     * to {@link #SCOPE_GUIDANCE} so the LLM doesn't hallucinate. Note
+     * that "성적", "시간표", "GPA" are intentionally **not** in this list:
+     * those are now real tools ({@code get_my_schedule},
+     * {@code get_my_grades}) and the LLM is allowed to call them. The
+     * authenticated-vs-anonymous gating happens inside
+     * {@code executeToolCall} which returns {@link #SAINT_SESSION_GUIDANCE}
+     * when the chat lacks a student id.
+     */
+    private static boolean looksLikeOutOfScopeRequest(String message) {
         String normalized = normalize(message);
-        return containsAny(normalized, "성적", "학점", "gpa", "시간표", "lms", "과제", "usaint", "u-saint",
-                "유세인트", "로그인", "개인정보", "수강신청", "졸업요건");
+        return containsAny(normalized, "lms", "과제", "수강신청", "졸업요건", "개인정보");
     }
 
     private static boolean looksLikeSecretInput(String message) {
         String normalized = normalize(message);
-        return containsAny(normalized, "비밀번호", "password", "학번", "쿠키", "cookie", "세션", "session",
+        return containsAny(normalized, "비밀번호", "password", "쿠키", "cookie", "세션", "session",
                 "api key", "apikey", "토큰", "token", "jwt");
     }
 

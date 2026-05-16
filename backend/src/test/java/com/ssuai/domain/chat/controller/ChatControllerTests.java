@@ -39,7 +39,7 @@ class ChatControllerTests {
 
     @Test
     void replyWithValidBodyReturnsSuccessEnvelopeAndGeneratedConversationId() throws Exception {
-        when(chatService.reply(anyString(), eq("오늘 학식 뭐야?")))
+        when(chatService.reply(anyString(), eq("오늘 학식 뭐야?"), org.mockito.ArgumentMatchers.isNull()))
                 .thenAnswer(invocation -> new ChatResponse(invocation.getArgument(0), "오늘 학식은 mock 메뉴예요."));
 
         mockMvc.perform(post("/api/chat")
@@ -58,7 +58,7 @@ class ChatControllerTests {
 
     @Test
     void replyPreservesProvidedConversationId() throws Exception {
-        when(chatService.reply(eq("c-existing-1"), eq("카페 어디 있어?")))
+        when(chatService.reply(eq("c-existing-1"), eq("카페 어디 있어?"), org.mockito.ArgumentMatchers.isNull()))
                 .thenReturn(new ChatResponse("c-existing-1", "시설 검색 결과예요."));
 
         mockMvc.perform(post("/api/chat")
@@ -126,7 +126,7 @@ class ChatControllerTests {
 
     @Test
     void chatUnavailableReturnsServiceUnavailableEnvelope() throws Exception {
-        when(chatService.reply(anyString(), eq("오늘 학식 뭐야?"))).thenThrow(new ChatUnavailableException());
+        when(chatService.reply(anyString(), eq("오늘 학식 뭐야?"), org.mockito.ArgumentMatchers.isNull())).thenThrow(new ChatUnavailableException());
 
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)

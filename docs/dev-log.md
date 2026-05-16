@@ -3,6 +3,23 @@
 ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 큰 결정은 별도로 `docs/adr/` 에 ADR 로 적는다.
 
+## 2026-05-17
+
+- 2026-05-17: **Task 16 MCP tool 등록 — `get_my_schedule` + `get_my_grades`**
+  (spec §9 #4 thread-local pattern). `SaintToolContext` 가 chat 스레드에
+  바인딩되는 try-with-resources 스코프 + @Tool 메서드가 학번 인자 X (context
+  에서만 읽음). 외부 MCP client (Claude Desktop 등) 가 학번 위조 못함 —
+  context 미바인딩 시 IllegalStateException. 다만 in-process MCP SSE
+  loopback 은 servlet 스레드로 hop 해서 ThreadLocal 전달 안 됨 → chat
+  path 는 MCP 우회하고 `SaintScheduleService` / `SaintGradesService` 직접
+  호출 (executeToolCall 분기). `ChatController` 가 `AuthAttributes.STUDENT_ID`
+  읽어서 `chatService.reply(.., studentId)` 로 plumb, `ChatService` 인터페이스
+  3-arg 메서드 추가 + default 1-arg → 3-arg 위임. `looksLikePrivateAcademicRequest`
+  → `looksLikeOutOfScopeRequest` (성적/시간표/gpa 제거, LMS·과제·수강신청·
+  졸업요건만 catch). 시스템 프롬프트도 새 도구 노출 + 성적은 본문 만들지
+  말고 "성적 페이지에서 N과목" 인용만 명시. 단위 테스트 9개 추가 (Context
+  4 + ScheduleTool 3 + GradesTool 2 + chat dispatch 4).
+
 ## 2026-05-16
 
 - 2026-05-16: **Task 16 LLM 본문 누출 가드 잠금** (spec §6 #6 / §8). `LlmChatService.compactAndCap`

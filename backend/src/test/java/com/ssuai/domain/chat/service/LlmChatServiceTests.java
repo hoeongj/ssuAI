@@ -57,6 +57,10 @@ class LlmChatServiceTests {
     private static final String FACILITY_JSON_EMPTY = "{\"facilities\":[]}";
 
     private final McpSyncClient mcpClient = mock(McpSyncClient.class);
+    private final com.ssuai.domain.saint.service.SaintScheduleService scheduleService =
+            mock(com.ssuai.domain.saint.service.SaintScheduleService.class);
+    private final com.ssuai.domain.saint.service.SaintGradesService gradesService =
+            mock(com.ssuai.domain.saint.service.SaintGradesService.class);
 
     @Test
     void fallsBackAcrossProvidersWhenFirstProviderRateLimitIsExceeded() {
@@ -268,14 +272,14 @@ class LlmChatServiceTests {
     }
 
     @Test
-    void privateAcademicRequestReturnsScopeGuidanceWithoutCallingProviders() {
+    void outOfScopeRequestReturnsScopeGuidanceWithoutCallingProviders() {
         FakeProvider gemini = new FakeProvider("gemini")
                 .reply("gemini-model", "should not be called");
         LlmChatService chatService = chatService(List.of(gemini), List.of("gemini"));
 
         ChatResponse response = chatService.reply("c-test", "내 LMS 과제 알려줘");
 
-        assertThat(response.reply()).contains("아직은 로그인 연동이 필요한 학사 정보");
+        assertThat(response.reply()).contains("그 정보는 지원하지 않");
         assertThat(gemini.callCount()).isZero();
         verify(mcpClient, never()).callTool(any());
     }
@@ -379,6 +383,133 @@ class LlmChatServiceTests {
                 .doesNotContain("내 비밀번호는 1234야");
         assertThat(secondRequestMessages).extracting(OpenAiChatCompletionRequest.Message::content)
                 .doesNotContain("비밀번호");
+    }
+
+    @Test
+    void privateScheduleToolCallBypassesMcpAndUsesAuthenticatedStudentId() {
+        com.ssuai.domain.saint.dto.ScheduleResponse stub = new com.ssuai.domain.saint.dto.ScheduleResponse(
+                2022, 2025, 2,
+                List.of(new com.ssuai.domain.saint.dto.TermSchedule(2025, 2, List.of(
+                        new com.ssuai.domain.saint.dto.ScheduleEntry(
+                                1, "월", 1, "09:00-09:50", "운영체제", "김교수", "정보과학관 401")))));
+        when(scheduleService.fetchSchedule("20221528")).thenReturn(stub);
+        FakeProvider provider = new FakeProvider("gemini")
+                .toolCall("gemini-model", new OpenAiToolCall(
+                        "call-1",
+                        "function",
+                        new OpenAiToolCall.FunctionCall("get_my_schedule", "{}")))
+                .reply("gemini-model", "이번 학기 월 1교시는 운영체제예요.");
+        LlmChatService chatService = chatService(List.of(provider), List.of("gemini"), List.of(), 0);
+
+        ChatResponse response = chatService.reply("c-test", "내 시간표 알려줘", "20221528");
+
+        assertThat(response.reply()).contains("운영체제");
+        verify(scheduleService).fetchSchedule("20221528");
+        verify(mcpClient, never()).callTool(argThat(named("get_my_schedule")));
+        // 두 번째 LLM call (tool 결과 포함) — professor / timeRange / dayLabel 차단 확인
+        String toolContent = provider.request(1).messages().stream()
+                .filter(message -> "tool".equals(message.role()))
+                .findFirst()
+                .orElseThrow()
+                .content();
+        assertThat(toolContent)
+                .contains("\"course\":\"운영체제\"")
+                .doesNotContain("professor")
+                .doesNotContain("김교수")
+                .doesNotContain("timeRange")
+                .doesNotContain("09:00-09:50")
+                .doesNotContain("dayLabel");
+    }
+
+    @Test
+    void privateScheduleToolReturnsLoginGuidanceForAnonymousChat() {
+        FakeProvider provider = new FakeProvider("gemini")
+                .toolCall("gemini-model", new OpenAiToolCall(
+                        "call-1",
+                        "function",
+                        new OpenAiToolCall.FunctionCall("get_my_schedule", "{}")))
+                .reply("gemini-model", "u-SAINT 로그인이 필요해요.");
+        LlmChatService chatService = chatService(List.of(provider), List.of("gemini"), List.of(), 0);
+
+        ChatResponse response = chatService.reply("c-test", "내 시간표 알려줘", null);
+
+        assertThat(response.reply()).contains("로그인");
+        verify(scheduleService, never()).fetchSchedule(org.mockito.ArgumentMatchers.any());
+        String toolContent = provider.request(1).messages().stream()
+                .filter(message -> "tool".equals(message.role()))
+                .findFirst()
+                .orElseThrow()
+                .content();
+        assertThat(toolContent).contains("로그인");
+    }
+
+    @Test
+    void privateGradesToolCompactsToCountAndLinkOnly() {
+        com.ssuai.domain.saint.dto.GpaSummary summary =
+                new com.ssuai.domain.saint.dto.GpaSummary(18.0, 18.0, 63.00, 3.50, 85.00, 3.0);
+        com.ssuai.domain.saint.dto.GradesResponse stub =
+                new com.ssuai.domain.saint.dto.GradesResponse(
+                        List.of(new com.ssuai.domain.saint.dto.TermGpa(
+                                2025, "2학기", 18.0, 18.0, 3.0, 3.50, 63.00, 85.00,
+                                "50/100", "60/100", false, false, false)),
+                        summary,
+                        summary,
+                        Map.of("2025-2학기", List.of(
+                                new com.ssuai.domain.saint.dto.CourseGrade(
+                                        "95", "A0", "운영체제", "21500001", 3.0, "김교수", ""))));
+        when(gradesService.fetchGrades("20221528")).thenReturn(stub);
+        FakeProvider provider = new FakeProvider("gemini")
+                .toolCall("gemini-model", new OpenAiToolCall(
+                        "call-1",
+                        "function",
+                        new OpenAiToolCall.FunctionCall("get_my_grades", "{}")))
+                .reply("gemini-model", "성적 페이지에서 1과목 확인 가능합니다.");
+        LlmChatService chatService = chatService(List.of(provider), List.of("gemini"), List.of(), 0);
+
+        ChatResponse response = chatService.reply("c-test", "내 성적 알려줘", "20221528");
+
+        assertThat(response.reply()).contains("성적 페이지");
+        verify(gradesService).fetchGrades("20221528");
+        // tool content 가 LLM 으로 가는데, raw GPA/과목명/점수/등급/교수명 절대 X
+        String toolContent = provider.request(1).messages().stream()
+                .filter(message -> "tool".equals(message.role()))
+                .findFirst()
+                .orElseThrow()
+                .content();
+        assertThat(toolContent)
+                .contains("\"count\":1")
+                .contains("\"link\":\"/grades\"")
+                .doesNotContain("3.50")
+                .doesNotContain("95")
+                .doesNotContain("A0")
+                .doesNotContain("운영체제")
+                .doesNotContain("김교수")
+                .doesNotContain("21500001")
+                .doesNotContain("history")
+                .doesNotContain("detailsByTerm");
+    }
+
+    @Test
+    void privateGradesToolReturnsExpiredSessionGuidanceWhenSessionStoreLapsed() {
+        when(gradesService.fetchGrades("20221528"))
+                .thenThrow(new com.ssuai.global.exception.SaintSessionExpiredException());
+        FakeProvider provider = new FakeProvider("gemini")
+                .toolCall("gemini-model", new OpenAiToolCall(
+                        "call-1",
+                        "function",
+                        new OpenAiToolCall.FunctionCall("get_my_grades", "{}")))
+                .reply("gemini-model", "u-SAINT 세션이 만료됐어요.");
+        LlmChatService chatService = chatService(List.of(provider), List.of("gemini"), List.of(), 0);
+
+        ChatResponse response = chatService.reply("c-test", "내 성적 알려줘", "20221528");
+
+        assertThat(response.reply()).contains("만료");
+        String toolContent = provider.request(1).messages().stream()
+                .filter(message -> "tool".equals(message.role()))
+                .findFirst()
+                .orElseThrow()
+                .content();
+        assertThat(toolContent).contains("만료");
     }
 
     /**
@@ -578,6 +709,8 @@ class LlmChatServiceTests {
                 providers,
                 new ObjectMapper(),
                 new ChatConversationStore(new ChatMemoryProperties()),
+                scheduleService,
+                gradesService,
                 List.of(mcpClient)
         );
     }
@@ -594,6 +727,8 @@ class LlmChatServiceTests {
                 providers,
                 new ObjectMapper(),
                 new ChatConversationStore(new ChatMemoryProperties()),
+                scheduleService,
+                gradesService,
                 List.of(mcpClient),
                 clock
         );

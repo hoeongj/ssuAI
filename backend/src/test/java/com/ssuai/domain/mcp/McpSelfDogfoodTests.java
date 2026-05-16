@@ -50,7 +50,9 @@ class McpSelfDogfoodTests {
                             "get_dorm_weekly_meal",
                             "search_campus_facilities",
                             "get_library_seat_status",
-                            "search_library_book"
+                            "search_library_book",
+                            "get_my_schedule",
+                            "get_my_grades"
                     );
         }
     }
