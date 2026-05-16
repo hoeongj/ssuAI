@@ -70,12 +70,18 @@ durable feature spec 은 `docs/tasks/<NN>-<name>.md`. 그 외는 conversation
 context 에서 작업.
 
 ## Implementation Workflow
-- `git status --short --branch` 로 시작, working tree 상태 확인
+- `git -C C:/Users/akftj/ssuAI status --short --branch` 로 시작 (PowerShell cwd 가 backend/ 일 수 있으니 절대경로)
+- 백엔드 테스트: PowerShell cwd = backend/ 기준 `.\gradlew.bat test` 또는 `.\gradlew.bat test --tests "..."`
+- git 커밋/push: `git -C C:/Users/akftj/ssuAI <subcommand>` 또는 Bash 툴 사용
 - 한 feature = 한 PR. 너무 크면 분할
 - Branch: `feat/` `fix/` `refactor/` `chore/` `docs/` + kebab-case
 - Commit: Conventional Commits (`feat(backend): ...`)
-- Verify 후 done 선언: 백엔드 `gradlew.bat test` (Linux: `./gradlew test`),
-  프론트 `pnpm --dir frontend test|lint|typecheck`
+- Verify 후 done 선언: 백엔드 `.\gradlew.bat test`, 프론트 `pnpm --dir frontend test|lint|typecheck`
+
+## opusplan 워크플로 (현재 모델 설정)
+- **설계·아키텍처 결정** (`/plan` 진입) → Opus 4.7 작동. 비자명 feature 설계, spec 검토, security 판단 등
+- **구현·테스트·커밋** (일반 모드) → Sonnet 작동. 파일 편집, 테스트 실행, git 커밋, PR 열기
+- `/plan` 은 설계 판단이 필요한 순간에만 — 단순 fix·커밋·테스트 실행은 일반 모드로 처리
 
 ## Authorship & Merge
 - **No Claude/AI/Anthropic attribution** — commit / PR body / docs /
