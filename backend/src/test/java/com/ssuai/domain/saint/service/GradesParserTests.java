@@ -26,7 +26,7 @@ class GradesParserTests {
         assertThat(history.get(0).year()).isEqualTo(2025);
         assertThat(history.get(0).term()).isEqualTo("겨울학기");
         assertThat(history.get(0).gpa()).isEqualTo(0.0d);
-        assertThat(history.get(0).passFailCredits()).isEqualTo(3.0d);
+        assertThat(history.get(0).passFailCredits()).isEqualTo(6.0d);
         assertThat(history.get(1).term()).isEqualTo("2학기");
         assertThat(history.get(1).gpa()).isEqualTo(3.50d);
         assertThat(history.get(5).year()).isEqualTo(2022);

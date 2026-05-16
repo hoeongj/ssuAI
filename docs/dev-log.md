@@ -5,6 +5,14 @@ ssuAI 작업 진행 회고. 매 task 끝마다 한 줄씩 누적.
 
 ## 2026-05-16
 
+- 2026-05-16: **Task 16 PR 16c-B 빨강 3개 fix → green**. (1) `grades-prev-success.html`
+  placeholder tbody id `WD65-contentTBody-placeholder` → `WD65-contentTBody`
+  (parser selector `tbody[id$=-contentTBody]` 매칭 필요, suffix 가 핵심).
+  fix 로 prev fixture 가 nthTbody(0)=dummy history / nthTbody(1)=실제 detail
+  로 정상 색인 → detail/cascade 2건 통과. (2) `GradesParserTests.termHistory…`
+  의 row 0 `passFailCredits` 기대값 `3.0` → `6.0`. 사유: spec-locked fixture
+  (PR #127) 의 2025 겨울학기 row 가 P/F-only 6학점 (cc=5=6.0), 테스트 작성 시
+  착오. 전체 gradle test green.
 - 2026-05-16: **Task 16 PR 16c-B — 학기별 세부 iterate path 확정**. 추가
   spike (이전학기 button-press 후 응답 캡처) 결과 spec §3.5.1 의 "학기별
   세부는 단일 GET 으로 못 받음, follow-up" 가정 폐기. button IDs 확정
