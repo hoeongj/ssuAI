@@ -1,13 +1,13 @@
-# Session handoff — 2026-05-17 새벽 (MCP 서버 완성, Phase 4 대기)
+# Session handoff — 2026-05-17 밤 (버그 수정 + 인프라 정리, Phase 4 대기)
 
 > Single rolling handoff (CLAUDE.md / AGENTS.md 정책). 이전 handoff overwrite.
 
 ## TL;DR
 
-- **MCP 서버 tool 10개 전부 구현 완료** (PR #139 머지됨).
-- **main 브랜치 최신, 미커밋 작업 없음.**
-- 다음 단계: **Phase 4 — 도서관 좌석 자동 예약 에이전트** (`reserve_library_seat`).
-- 코드 전체 최적화 완료 (system prompt 정정, docs 업데이트, 불필요 코드 정리).
+- **이 세션 작업**: 대시보드 카드 5개 추가, Helm 커넥터 플래그, dev .env 로딩 수정, k8s 운영 스크립트 2개, 대출 카드 인증 UI 수정.
+- **main 브랜치 최신, 미커밋 없음.**
+- 다음: **Phase 4 — 도서관 좌석 자동 예약 에이전트** (`reserve_library_seat`).
+- 서버 수동 작업 2가지 남아 있음 (아래 §Operations 참고).
 
 ## 완성된 MCP tool 목록 (10개)
 
@@ -23,6 +23,46 @@
 | `get_my_grades` | read | u-SAINT SSO |
 | `get_my_assignments` | read | LMS SSO |
 | `get_my_library_loans` | read | 도서관 세션 연동 |
+
+## 이번 세션 커밋 목록
+
+| SHA | 내용 |
+|-----|------|
+| `af7c615` | feat(frontend): 대시보드에 5개 카드 추가 (ScheduleCard, GradesCard, AssignmentsCard, LibraryLoansCard, LibraryBookSearchCard) |
+| `9ae3cac` | chore(deploy): Helm 차트에 누락 커넥터 env 추가 + dev .env 로딩 수정 |
+| `5dffacd` | chore(deploy): k8s secrets/image 스크립트 추가 + 도서관 좌석 기본 층 4→2 수정 |
+| `f2b70aa` | fix(frontend): LibraryLoansCard LIBRARY_SESSION_REQUIRED 전용 인증 UI |
+| `1164bb8` | chore(backend): application-prod.yml에 real 커넥터 기본값 명시 |
+
+## Operations — 서버에서 수동으로 해야 할 것
+
+### 1. API 키를 k8s Secret에 적용 (챗봇 CHAT_UNAVAILABLE 해결)
+
+서버 SSH에서 (repo root 기준):
+```bash
+bash deploy/scripts/apply-k8s-secrets.sh
+kubectl rollout restart deployment/ssuai-backend -n ssuai-prod
+```
+`backend/.env`를 읽어서 Secret을 idempotent하게 적용하고 재시작.
+
+### 2. 파드 이미지 업데이트 (MCP 4개 툴 + 새 커넥터 활성화)
+
+CI가 최신 커밋(`1164bb8`)으로 이미지를 빌드하면:
+```bash
+bash deploy/scripts/update-k8s-image.sh
+```
+`KUBE_CONFIG` GitHub Secret이 없으면 위 스크립트를 서버에서 직접 실행.
+
+### 3. Vercel 환경변수 확인
+
+Vercel 프로젝트 → Environment Variables에 아래가 있는지 확인:
+```
+NEXT_PUBLIC_SSUAI_API_BASE=https://ssumcp.duckdns.org
+```
+
+### 4. 도서관 좌석 데이터 불일치
+
+실제 도서관 앱과 층/공간 종류 및 좌석 수가 다름. 사용자가 실제 데이터 제공 후 수정 예정.
 
 ## 열린 PR
 
@@ -81,9 +121,9 @@ ssuAI 프로젝트 이어받음. 다음 순서대로:
 3. git -C C:/Users/akftj/ssuAI status --short --branch — main 최신 상태 확인
 
 현재 상태:
-- MCP 서버 10개 tool 완성, main 브랜치 최신
-- 다음: Phase 4 도서관 좌석 자동 예약 에이전트
-- Pyxis 예약 POST shape 가 미확인 → `/plan` 모드로 스파이크 설계부터
+- MCP 서버 10개 tool 완성, 대시보드 카드 10개 모두 있음
+- 서버 Operations 2가지 수동 남아 있음 (§Operations 참고)
+- 다음: Phase 4 도서관 좌석 자동 예약 에이전트 (Pyxis 예약 POST spike 필요)
 
-사용자 짧은 답 선호. Phase 4 설계 방향 제안부터 시작.
+Phase 4 설계 방향 제안부터 시작. Pyxis DevTools 스파이크 선행 필요.
 ```
