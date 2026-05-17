@@ -86,21 +86,6 @@ class RealLibrarySeatConnectorTests {
     }
 
     @Test
-    void returnsZeroCountsForFloorWithNoRooms() {
-        // B1은 실제 API 응답에 없음 → 빈 합계 반환
-        server.expect(requestTo(SEAT_ROOMS_URL))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(loadFixture("library/seat-rooms.json"),
-                        MediaType.APPLICATION_JSON));
-
-        LibrarySeatStatusResponse response = connector.fetchSeatStatus(LibraryFloor.B1, TOKEN);
-
-        assertThat(response.floor()).isEqualTo(-1);
-        assertThat(response.totalSeats()).isZero();
-        assertThat(response.zones()).isEmpty();
-    }
-
-    @Test
     void throwsLibraryAuthRequiredOnNeedLogin() {
         String needLoginBody = """
                 {"success":false,"code":"error.authentication.needLogin","message":"Please log in.","data":null}
@@ -108,7 +93,7 @@ class RealLibrarySeatConnectorTests {
         server.expect(requestTo(SEAT_ROOMS_URL))
                 .andRespond(withSuccess(needLoginBody, MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F4, TOKEN))
+        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F2, TOKEN))
                 .isInstanceOf(LibraryAuthRequiredException.class);
     }
 
@@ -120,7 +105,7 @@ class RealLibrarySeatConnectorTests {
         server.expect(requestTo(SEAT_ROOMS_URL))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F4, TOKEN))
+        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F2, TOKEN))
                 .isInstanceOf(ConnectorParseException.class);
     }
 
@@ -129,7 +114,7 @@ class RealLibrarySeatConnectorTests {
         server.expect(requestTo(SEAT_ROOMS_URL))
                 .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F4, TOKEN))
+        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F2, TOKEN))
                 .isInstanceOf(ConnectorParseException.class);
     }
 
@@ -138,7 +123,7 @@ class RealLibrarySeatConnectorTests {
         server.expect(requestTo(SEAT_ROOMS_URL))
                 .andRespond(withServerError());
 
-        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F4, TOKEN))
+        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F2, TOKEN))
                 .isInstanceOf(ConnectorUnavailableException.class);
     }
 
@@ -147,7 +132,7 @@ class RealLibrarySeatConnectorTests {
         server.expect(requestTo(SEAT_ROOMS_URL))
                 .andRespond(withException(new IOException("connect timed out")));
 
-        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F4, TOKEN))
+        assertThatThrownBy(() -> connector.fetchSeatStatus(LibraryFloor.F2, TOKEN))
                 .isInstanceOf(ConnectorTimeoutException.class);
     }
 

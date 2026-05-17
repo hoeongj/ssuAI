@@ -30,9 +30,9 @@ public class LibrarySeatController {
     public ApiResponse<LibrarySeatStatusResponse> getSeatStatus(
             @RequestParam
             @Parameter(
-                    description = "Library floor code. Allowed values: -1 (B1), 1, 2, 3, 4, 5, 6.",
+                    description = "Library floor code. Allowed values: 2, 5, 6.",
                     required = true,
-                    example = "4"
+                    example = "2"
             )
             int floor,
             HttpServletRequest request

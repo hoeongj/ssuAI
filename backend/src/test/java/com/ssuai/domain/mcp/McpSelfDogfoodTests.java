@@ -67,7 +67,7 @@ class McpSelfDogfoodTests {
             McpSchema.CallToolResult result = client.callTool(
                     new McpSchema.CallToolRequest(
                             "get_library_seat_status",
-                            Map.of("floor", 4)));
+                            Map.of("floor", 2)));
 
             assertThat(result.isError()).isNotEqualTo(Boolean.TRUE);
             String text = result.content().stream()

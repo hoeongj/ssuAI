@@ -11,31 +11,31 @@ vi.mock("@/lib/api/library", () => ({
   getLibrarySeatStatus: vi.fn(),
 }));
 
-const floorFour: LibrarySeatStatusResponse = {
-  floor: 4,
-  floorLabel: "4층",
-  totalSeats: 36,
-  availableSeats: 12,
-  reservedSeats: 18,
-  outOfServiceSeats: 6,
-  fetchedAt: "2026-05-15T07:30:14Z",
-  zones: [
-    { label: "창가", total: 8, available: 3, seatIds: ["412", "415", "418"] },
-    { label: "중앙", total: 28, available: 9, seatIds: [] },
-  ],
-};
-
 const floorTwo: LibrarySeatStatusResponse = {
   floor: 2,
   floorLabel: "2층",
-  totalSeats: 60,
-  availableSeats: 22,
-  reservedSeats: 32,
-  outOfServiceSeats: 6,
+  totalSeats: 344,
+  availableSeats: 230,
+  reservedSeats: 112,
+  outOfServiceSeats: 2,
   fetchedAt: "2026-05-15T07:30:14Z",
   zones: [
-    { label: "창가", total: 20, available: 9, seatIds: ["201", "203"] },
-    { label: "중앙", total: 40, available: 13, seatIds: [] },
+    { label: "숭실스퀘어ON(2F)", total: 112, available: 87, seatIds: ["201", "205", "210"] },
+    { label: "오픈열람실(2F)", total: 232, available: 143, seatIds: [] },
+  ],
+};
+
+const floorFive: LibrarySeatStatusResponse = {
+  floor: 5,
+  floorLabel: "5층",
+  totalSeats: 104,
+  availableSeats: 70,
+  reservedSeats: 32,
+  outOfServiceSeats: 2,
+  fetchedAt: "2026-05-15T07:30:14Z",
+  zones: [
+    { label: "숭실멀티라운지(5F)", total: 98, available: 65, seatIds: [] },
+    { label: "리클라이너(5F)", total: 6, available: 5, seatIds: [] },
   ],
 };
 
@@ -45,41 +45,41 @@ beforeEach(() => {
 
 describe("LibrarySeatCard", () => {
   it("renders availability + zones for the default floor", async () => {
-    vi.mocked(getLibrarySeatStatus).mockResolvedValue(floorFour);
+    vi.mocked(getLibrarySeatStatus).mockResolvedValue(floorTwo);
 
     renderWithProviders(<LibrarySeatCard />);
 
     const progressBar = await screen.findByRole("progressbar", {
-      name: /4층.*사용률/,
+      name: /2층.*사용률/,
     });
     expect(progressBar).toBeInTheDocument();
-    expect(screen.getByText(/\/ 36석 이용 가능/)).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("창가")).toBeInTheDocument();
-    expect(screen.getByText(/빈 자리: 412, 415, 418/)).toBeInTheDocument();
-    expect(screen.getByText("예약 18")).toBeInTheDocument();
-    expect(screen.getByText("사용 불가 6")).toBeInTheDocument();
+    expect(screen.getByText(/\/ 344석 이용 가능/)).toBeInTheDocument();
+    expect(screen.getByText("230")).toBeInTheDocument();
+    expect(screen.getByText("숭실스퀘어ON(2F)")).toBeInTheDocument();
+    expect(screen.getByText(/빈 자리: 201, 205, 210/)).toBeInTheDocument();
+    expect(screen.getByText("예약 112")).toBeInTheDocument();
+    expect(screen.getByText("사용 불가 2")).toBeInTheDocument();
   });
 
   it("switches floor when a different tab is selected", async () => {
     const user = userEvent.setup();
     vi.mocked(getLibrarySeatStatus).mockImplementation(async (floor) =>
-      floor === 2 ? floorTwo : floorFour,
+      floor === 5 ? floorFive : floorTwo,
     );
 
     renderWithProviders(<LibrarySeatCard />);
 
-    await screen.findByText(/\/ 36석 이용 가능/);
+    await screen.findByText(/\/ 344석 이용 가능/);
 
-    await user.click(screen.getByRole("tab", { name: "2층" }));
+    await user.click(screen.getByRole("tab", { name: "5층" }));
 
     await waitFor(() => {
-      expect(getLibrarySeatStatus).toHaveBeenCalledWith(2);
+      expect(getLibrarySeatStatus).toHaveBeenCalledWith(5);
     });
-    expect(await screen.findByText(/\/ 60석 이용 가능/)).toBeInTheDocument();
-    const progressBar = screen.getByRole("progressbar", { name: /2층.*사용률/ });
+    expect(await screen.findByText(/\/ 104석 이용 가능/)).toBeInTheDocument();
+    const progressBar = screen.getByRole("progressbar", { name: /5층.*사용률/ });
     expect(progressBar).toBeInTheDocument();
-    expect(within(progressBar.parentElement!).queryByText("22")).toBeInTheDocument();
+    expect(within(progressBar.parentElement!).queryByText("70")).toBeInTheDocument();
   });
 
   it("shows ErrorState with retry when the request fails", async () => {

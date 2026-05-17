@@ -25,7 +25,7 @@ public class LibrarySeatMcpTool {
                     + "이 도구는 읽기 전용이며, 좌석 예약은 별도의 동작 도구로 분리되어 있습니다."
     )
     public LibrarySeatStatusResponse getLibrarySeatStatus(
-            @ToolParam(description = "조회할 도서관 층 코드. 가능한 값: -1 (B1), 1, 2, 3, 4, 5, 6.")
+            @ToolParam(description = "조회할 도서관 층 코드. 가능한 값: 2 (2층), 5 (5층), 6 (6층).")
             int floor
     ) {
         LibraryFloor target = LibraryFloor.fromCode(floor);

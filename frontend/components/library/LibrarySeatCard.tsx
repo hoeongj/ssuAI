@@ -15,11 +15,7 @@ import type { LibraryFloorCode } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 const FLOOR_OPTIONS: ReadonlyArray<{ code: LibraryFloorCode; label: string }> = [
-  { code: -1, label: "B1" },
-  { code: 1, label: "1층" },
   { code: 2, label: "2층" },
-  { code: 3, label: "3층" },
-  { code: 4, label: "4층" },
   { code: 5, label: "5층" },
   { code: 6, label: "6층" },
 ];

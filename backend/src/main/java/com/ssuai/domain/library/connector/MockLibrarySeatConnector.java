@@ -23,33 +23,17 @@ public class MockLibrarySeatConnector implements LibrarySeatConnector {
     @Override
     public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token) {
         return switch (floor) {
-            case B1 -> snapshot(floor, 24, 9, 12, 3, List.of(
-                    new LibrarySeatZone("그룹스터디", 12, 5, List.of()),
-                    new LibrarySeatZone("개인열람", 12, 4, List.of())
+            case F2 -> snapshot(floor, 344, 230, 112, 2, List.of(
+                    new LibrarySeatZone("숭실스퀘어ON(2F)", 112, 75, List.of()),
+                    new LibrarySeatZone("오픈열람실(2F)", 232, 155, List.of())
             ));
-            case F1 -> snapshot(floor, 48, 18, 26, 4, List.of(
-                    new LibrarySeatZone("창가", 16, 6, List.of("101", "104", "107")),
-                    new LibrarySeatZone("중앙", 32, 12, List.of())
+            case F5 -> snapshot(floor, 104, 70, 32, 2, List.of(
+                    new LibrarySeatZone("숭실멀티라운지(5F)", 98, 65, List.of()),
+                    new LibrarySeatZone("리클라이너(5F)", 6, 5, List.of())
             ));
-            case F2 -> snapshot(floor, 60, 22, 32, 6, List.of(
-                    new LibrarySeatZone("창가", 20, 9, List.of("201", "203", "208", "212")),
-                    new LibrarySeatZone("중앙", 40, 13, List.of())
-            ));
-            case F3 -> snapshot(floor, 40, 15, 20, 5, List.of(
-                    new LibrarySeatZone("창가", 12, 5, List.of("305", "311")),
-                    new LibrarySeatZone("중앙", 28, 10, List.of())
-            ));
-            case F4 -> snapshot(floor, 36, 12, 18, 6, List.of(
-                    new LibrarySeatZone("창가", 8, 3, List.of("412", "415", "418")),
-                    new LibrarySeatZone("중앙", 28, 9, List.of())
-            ));
-            case F5 -> snapshot(floor, 32, 11, 16, 5, List.of(
-                    new LibrarySeatZone("창가", 10, 4, List.of("501", "503")),
-                    new LibrarySeatZone("중앙", 22, 7, List.of())
-            ));
-            case F6 -> snapshot(floor, 20, 7, 10, 3, List.of(
-                    new LibrarySeatZone("창가", 8, 3, List.of("601")),
-                    new LibrarySeatZone("중앙", 12, 4, List.of())
+            case F6 -> snapshot(floor, 308, 200, 100, 8, List.of(
+                    new LibrarySeatZone("마루열람실(6F)", 246, 160, List.of()),
+                    new LibrarySeatZone("대학원열람실(6F)", 62, 40, List.of())
             ));
         };
     }

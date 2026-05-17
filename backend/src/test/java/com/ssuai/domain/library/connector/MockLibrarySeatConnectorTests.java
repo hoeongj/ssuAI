@@ -38,13 +38,12 @@ class MockLibrarySeatConnectorTests {
     }
 
     @Test
-    void floorFourPreservesIndividualSeatIdsForPhaseFourReservation() {
-        LibrarySeatStatusResponse response = connector.fetchSeatStatus(LibraryFloor.F4, null);
-
-        boolean anyZoneHasSeatIds = response.zones().stream()
-                .anyMatch(zone -> !zone.seatIds().isEmpty());
-        assertThat(anyZoneHasSeatIds)
-                .as("F4 mock fixture should expose at least one zone with seatIds to keep the Phase 4 reserve flow testable")
-                .isTrue();
+    void allFloorsReturnNonEmptyZones() {
+        for (LibraryFloor floor : LibraryFloor.values()) {
+            LibrarySeatStatusResponse response = connector.fetchSeatStatus(floor, null);
+            assertThat(response.zones())
+                    .as("floor %s should have at least one zone", floor)
+                    .isNotEmpty();
+        }
     }
 }

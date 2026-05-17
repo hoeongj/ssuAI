@@ -32,12 +32,12 @@ class LibrarySeatCacheTests {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-15T10:00:00Z"));
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30), clock);
 
-        LibrarySeatStatusResponse first = cache.get(LibraryFloor.F4, null);
+        LibrarySeatStatusResponse first = cache.get(LibraryFloor.F2, null);
         clock.advance(Duration.ofSeconds(20));
-        LibrarySeatStatusResponse second = cache.get(LibraryFloor.F4, null);
+        LibrarySeatStatusResponse second = cache.get(LibraryFloor.F2, null);
 
         assertThat(second).isSameAs(first);
-        assertThat(connector.callsFor(LibraryFloor.F4)).isEqualTo(1);
+        assertThat(connector.callsFor(LibraryFloor.F2)).isEqualTo(1);
     }
 
     @Test
@@ -46,11 +46,11 @@ class LibrarySeatCacheTests {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-15T10:00:00Z"));
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30), clock);
 
-        cache.get(LibraryFloor.F4, null);
+        cache.get(LibraryFloor.F2, null);
         clock.advance(Duration.ofSeconds(31));
-        cache.get(LibraryFloor.F4, null);
+        cache.get(LibraryFloor.F2, null);
 
-        assertThat(connector.callsFor(LibraryFloor.F4)).isEqualTo(2);
+        assertThat(connector.callsFor(LibraryFloor.F2)).isEqualTo(2);
     }
 
     @Test
@@ -59,11 +59,11 @@ class LibrarySeatCacheTests {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-15T10:00:00Z"));
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30), clock);
 
-        cache.get(LibraryFloor.F1, null);
+        cache.get(LibraryFloor.F5, null);
         cache.get(LibraryFloor.F2, null);
-        cache.get(LibraryFloor.F1, null);
+        cache.get(LibraryFloor.F5, null);
 
-        assertThat(connector.callsFor(LibraryFloor.F1)).isEqualTo(1);
+        assertThat(connector.callsFor(LibraryFloor.F5)).isEqualTo(1);
         assertThat(connector.callsFor(LibraryFloor.F2)).isEqualTo(1);
     }
 
@@ -75,10 +75,10 @@ class LibrarySeatCacheTests {
         ExecutorService pool = Executors.newFixedThreadPool(4);
         try {
             List<CompletableFuture<LibrarySeatStatusResponse>> futures = List.of(
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool),
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool),
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool),
-                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F4, null), pool)
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F2, null), pool),
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F2, null), pool),
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F2, null), pool),
+                    CompletableFuture.supplyAsync(() -> cache.get(LibraryFloor.F2, null), pool)
             );
             // Give the threads time to all reach the in-flight gate before releasing.
             assertThat(connector.awaitWaiter(5, TimeUnit.SECONDS)).isTrue();
@@ -100,10 +100,10 @@ class LibrarySeatCacheTests {
         LibrarySeatCache cache = new LibrarySeatCache(connector, Duration.ofSeconds(30),
                 Clock.fixed(Instant.parse("2026-05-15T10:00:00Z"), ZoneOffset.UTC));
 
-        assertThatThrownBy(() -> cache.get(LibraryFloor.F4, null))
+        assertThatThrownBy(() -> cache.get(LibraryFloor.F2, null))
                 .isInstanceOf(ConnectorTimeoutException.class);
-        connector.recover(stubResponse(LibraryFloor.F4));
-        LibrarySeatStatusResponse recovered = cache.get(LibraryFloor.F4, null);
+        connector.recover(stubResponse(LibraryFloor.F2));
+        LibrarySeatStatusResponse recovered = cache.get(LibraryFloor.F2, null);
 
         assertThat(recovered).isNotNull();
         assertThat(connector.callCount()).isEqualTo(2);
@@ -150,10 +150,9 @@ class LibrarySeatCacheTests {
     }
 
     private static final class CountingConnector implements LibrarySeatConnector {
-        private final AtomicInteger b1Calls = new AtomicInteger();
-        private final AtomicInteger f1Calls = new AtomicInteger();
         private final AtomicInteger f2Calls = new AtomicInteger();
-        private final AtomicInteger f4Calls = new AtomicInteger();
+        private final AtomicInteger f5Calls = new AtomicInteger();
+        private final AtomicInteger f6Calls = new AtomicInteger();
 
         @Override
         public LibrarySeatStatusResponse fetchSeatStatus(LibraryFloor floor, String token) {
@@ -167,11 +166,9 @@ class LibrarySeatCacheTests {
 
         private AtomicInteger counterFor(LibraryFloor floor) {
             return switch (floor) {
-                case B1 -> b1Calls;
-                case F1 -> f1Calls;
                 case F2 -> f2Calls;
-                case F4 -> f4Calls;
-                default -> throw new IllegalStateException("counter not wired for " + floor);
+                case F5 -> f5Calls;
+                case F6 -> f6Calls;
             };
         }
     }

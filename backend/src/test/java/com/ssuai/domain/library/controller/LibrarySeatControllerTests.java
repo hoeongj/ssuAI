@@ -46,37 +46,45 @@ class LibrarySeatControllerTests {
     @Test
     void getSeatStatusReturnsSuccessEnvelope() throws Exception {
         LibrarySeatStatusResponse response = new LibrarySeatStatusResponse(
-                4, "4층", 36, 12, 18, 6,
+                2, "2층", 344, 230, 112, 2,
                 Instant.parse("2026-05-15T07:30:14Z"),
-                List.of(new LibrarySeatZone("창가", 8, 3, List.of("412", "415")))
+                List.of(new LibrarySeatZone("숭실스퀘어ON(2F)", 112, 87, List.of()))
         );
-        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F4), anyString())).thenReturn(response);
+        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F2), anyString())).thenReturn(response);
 
-        mockMvc.perform(get("/api/library/seats").param("floor", "4"))
+        mockMvc.perform(get("/api/library/seats").param("floor", "2"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.floor").value(4))
-                .andExpect(jsonPath("$.data.floorLabel").value("4층"))
-                .andExpect(jsonPath("$.data.availableSeats").value(12))
-                .andExpect(jsonPath("$.data.totalSeats").value(36))
-                .andExpect(jsonPath("$.data.zones[0].label").value("창가"))
-                .andExpect(jsonPath("$.data.zones[0].seatIds[0]").value("412"))
+                .andExpect(jsonPath("$.data.floor").value(2))
+                .andExpect(jsonPath("$.data.floorLabel").value("2층"))
+                .andExpect(jsonPath("$.data.availableSeats").value(230))
+                .andExpect(jsonPath("$.data.totalSeats").value(344))
+                .andExpect(jsonPath("$.data.zones[0].label").value("숭실스퀘어ON(2F)"))
                 .andExpect(jsonPath("$.error").value(nullValue()))
                 .andExpect(jsonPath("$.traceId").value(not(emptyOrNullString())));
     }
 
     @Test
-    void getSeatStatusAcceptsBasementFloor() throws Exception {
+    void getSeatStatusAcceptsFloor5() throws Exception {
         LibrarySeatStatusResponse response = new LibrarySeatStatusResponse(
-                -1, "B1", 24, 9, 12, 3,
+                5, "5층", 104, 70, 32, 2,
                 Instant.parse("2026-05-15T07:30:14Z"),
                 List.of()
         );
-        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.B1), anyString())).thenReturn(response);
+        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F5), anyString())).thenReturn(response);
 
-        mockMvc.perform(get("/api/library/seats").param("floor", "-1"))
+        mockMvc.perform(get("/api/library/seats").param("floor", "5"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.floor").value(-1))
-                .andExpect(jsonPath("$.data.floorLabel").value("B1"));
+                .andExpect(jsonPath("$.data.floor").value(5))
+                .andExpect(jsonPath("$.data.floorLabel").value("5층"));
+    }
+
+    @Test
+    void getSeatStatusRejectsFloor4() throws Exception {
+        mockMvc.perform(get("/api/library/seats").param("floor", "4"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(libraryService);
     }
 
     @Test
@@ -99,30 +107,30 @@ class LibrarySeatControllerTests {
 
     @Test
     void connectorTimeoutMapsTo504() throws Exception {
-        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F4), anyString()))
+        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F2), anyString()))
                 .thenThrow(new ConnectorTimeoutException());
 
-        mockMvc.perform(get("/api/library/seats").param("floor", "4"))
+        mockMvc.perform(get("/api/library/seats").param("floor", "2"))
                 .andExpect(status().isGatewayTimeout())
                 .andExpect(jsonPath("$.error.code").value("CONNECTOR_TIMEOUT"));
     }
 
     @Test
     void connectorUnavailableMapsTo503() throws Exception {
-        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F4), anyString()))
+        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F2), anyString()))
                 .thenThrow(new ConnectorUnavailableException());
 
-        mockMvc.perform(get("/api/library/seats").param("floor", "4"))
+        mockMvc.perform(get("/api/library/seats").param("floor", "2"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("CONNECTOR_UNAVAILABLE"));
     }
 
     @Test
     void libraryAuthRequiredMapsTo401() throws Exception {
-        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F4), anyString()))
+        when(libraryService.getSeatStatusForSession(eq(LibraryFloor.F2), anyString()))
                 .thenThrow(new LibraryAuthRequiredException());
 
-        mockMvc.perform(get("/api/library/seats").param("floor", "4"))
+        mockMvc.perform(get("/api/library/seats").param("floor", "2"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("LIBRARY_SESSION_REQUIRED"));
     }

@@ -30,25 +30,25 @@ class LibrarySeatServiceTests {
     @Test
     void delegatesToCacheForRequestedFloor() {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
-        LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F4);
-        when(cache.get(eq(LibraryFloor.F4), any())).thenReturn(stub);
+        LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F2);
+        when(cache.get(eq(LibraryFloor.F2), any())).thenReturn(stub);
         LibrarySeatService service = mockModeService(cache, new LibrarySessionStore(defaultProperties()));
 
-        LibrarySeatStatusResponse response = service.getSeatStatus(LibraryFloor.F4);
+        LibrarySeatStatusResponse response = service.getSeatStatus(LibraryFloor.F2);
 
         assertThat(response).isSameAs(stub);
         ArgumentCaptor<LibraryFloor> floorCaptor = ArgumentCaptor.forClass(LibraryFloor.class);
         verify(cache).get(floorCaptor.capture(), any());
-        assertThat(floorCaptor.getValue()).isEqualTo(LibraryFloor.F4);
+        assertThat(floorCaptor.getValue()).isEqualTo(LibraryFloor.F2);
     }
 
     @Test
     void connectorExceptionBubblesUpWithoutWrapping() {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
-        when(cache.get(eq(LibraryFloor.F4), any())).thenThrow(new ConnectorTimeoutException());
+        when(cache.get(eq(LibraryFloor.F2), any())).thenThrow(new ConnectorTimeoutException());
         LibrarySeatService service = mockModeService(cache, new LibrarySessionStore(defaultProperties()));
 
-        assertThatThrownBy(() -> service.getSeatStatus(LibraryFloor.F4))
+        assertThatThrownBy(() -> service.getSeatStatus(LibraryFloor.F2))
                 .isInstanceOf(ConnectorTimeoutException.class);
     }
 
@@ -56,12 +56,12 @@ class LibrarySeatServiceTests {
     void mockModeSkipsSessionCheck() {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
         LibrarySessionStore store = new LibrarySessionStore(defaultProperties());
-        LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F4);
-        when(cache.get(eq(LibraryFloor.F4), any())).thenReturn(stub);
+        LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F2);
+        when(cache.get(eq(LibraryFloor.F2), any())).thenReturn(stub);
         LibrarySeatService service = new LibrarySeatService(cache, store, "mock");
 
         assertThat(service.isAuthRequired()).isFalse();
-        assertThat(service.getSeatStatusForSession(LibraryFloor.F4, SESSION_KEY)).isSameAs(stub);
+        assertThat(service.getSeatStatusForSession(LibraryFloor.F2, SESSION_KEY)).isSameAs(stub);
     }
 
     @Test
@@ -71,7 +71,7 @@ class LibrarySeatServiceTests {
         LibrarySeatService service = new LibrarySeatService(cache, store, "real");
 
         assertThat(service.isAuthRequired()).isTrue();
-        assertThatThrownBy(() -> service.getSeatStatusForSession(LibraryFloor.F4, SESSION_KEY))
+        assertThatThrownBy(() -> service.getSeatStatusForSession(LibraryFloor.F2, SESSION_KEY))
                 .isInstanceOf(LibraryAuthRequiredException.class);
 
         verifyNoInteractions(cache);
@@ -82,11 +82,11 @@ class LibrarySeatServiceTests {
         LibrarySeatCache cache = mock(LibrarySeatCache.class);
         LibrarySessionStore store = new LibrarySessionStore(defaultProperties());
         store.put(SESSION_KEY, TOKEN);
-        LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F4);
-        when(cache.get(eq(LibraryFloor.F4), any())).thenReturn(stub);
+        LibrarySeatStatusResponse stub = stubResponse(LibraryFloor.F2);
+        when(cache.get(eq(LibraryFloor.F2), any())).thenReturn(stub);
         LibrarySeatService service = new LibrarySeatService(cache, store, "real");
 
-        assertThat(service.getSeatStatusForSession(LibraryFloor.F4, SESSION_KEY)).isSameAs(stub);
+        assertThat(service.getSeatStatusForSession(LibraryFloor.F2, SESSION_KEY)).isSameAs(stub);
     }
 
     private static LibrarySeatService mockModeService(LibrarySeatCache cache, LibrarySessionStore store) {

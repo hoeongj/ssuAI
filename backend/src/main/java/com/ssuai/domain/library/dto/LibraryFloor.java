@@ -5,11 +5,7 @@ import java.util.stream.Collectors;
 
 public enum LibraryFloor {
 
-    B1(-1, "B1"),
-    F1(1, "1층"),
     F2(2, "2층"),
-    F3(3, "3층"),
-    F4(4, "4층"),
     F5(5, "5층"),
     F6(6, "6층");
 

@@ -76,7 +76,7 @@ export interface CampusFacilityListResponse {
   facilities: CampusFacility[];
 }
 
-export type LibraryFloorCode = -1 | 1 | 2 | 3 | 4 | 5 | 6;
+export type LibraryFloorCode = 2 | 5 | 6;
 
 export interface LibrarySeatZone {
   label: string;

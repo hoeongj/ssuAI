@@ -11,11 +11,7 @@ class LibraryFloorTests {
 
     @ParameterizedTest
     @CsvSource({
-            "-1, B1, B1",
-            "1, F1, 1층",
             "2, F2, 2층",
-            "3, F3, 3층",
-            "4, F4, 4층",
             "5, F5, 5층",
             "6, F6, 6층"
     })
@@ -28,7 +24,7 @@ class LibraryFloorTests {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, -2, 7, 99})
+    @ValueSource(ints = {-1, 0, 1, 3, 4, 7, 99})
     void fromCodeRejectsUnsupportedCodes(int code) {
         assertThatThrownBy(() -> LibraryFloor.fromCode(code))
                 .isInstanceOf(IllegalArgumentException.class)

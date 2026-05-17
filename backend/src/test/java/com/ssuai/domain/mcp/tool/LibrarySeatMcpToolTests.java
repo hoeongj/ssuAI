@@ -23,14 +23,14 @@ class LibrarySeatMcpToolTests {
     void returnsServiceResponseForValidFloor() {
         LibrarySeatService service = mock(LibrarySeatService.class);
         LibrarySeatStatusResponse stub = new LibrarySeatStatusResponse(
-                4, "4층", 36, 12, 18, 6,
+                2, "2층", 344, 230, 112, 2,
                 Instant.parse("2026-05-15T10:00:00Z"),
-                List.of(new LibrarySeatZone("창가", 8, 3, List.of("412", "415")))
+                List.of(new LibrarySeatZone("숭실스퀘어ON(2F)", 112, 87, List.of()))
         );
-        when(service.getSeatStatus(LibraryFloor.F4)).thenReturn(stub);
+        when(service.getSeatStatus(LibraryFloor.F2)).thenReturn(stub);
         LibrarySeatMcpTool tool = new LibrarySeatMcpTool(service);
 
-        LibrarySeatStatusResponse response = tool.getLibrarySeatStatus(4);
+        LibrarySeatStatusResponse response = tool.getLibrarySeatStatus(2);
 
         assertThat(response).isSameAs(stub);
     }
@@ -40,7 +40,7 @@ class LibrarySeatMcpToolTests {
         LibrarySeatService service = mock(LibrarySeatService.class);
         LibrarySeatMcpTool tool = new LibrarySeatMcpTool(service);
 
-        assertThatThrownBy(() -> tool.getLibrarySeatStatus(99))
+        assertThatThrownBy(() -> tool.getLibrarySeatStatus(4))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("floor");
     }
@@ -48,10 +48,10 @@ class LibrarySeatMcpToolTests {
     @Test
     void connectorTimeoutMapsToFriendlyKoreanMessage() {
         LibrarySeatService service = mock(LibrarySeatService.class);
-        when(service.getSeatStatus(LibraryFloor.F4)).thenThrow(new ConnectorTimeoutException());
+        when(service.getSeatStatus(LibraryFloor.F2)).thenThrow(new ConnectorTimeoutException());
         LibrarySeatMcpTool tool = new LibrarySeatMcpTool(service);
 
-        assertThatThrownBy(() -> tool.getLibrarySeatStatus(4))
+        assertThatThrownBy(() -> tool.getLibrarySeatStatus(2))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("도서관 좌석")
                 .hasMessageContaining("응답이 지연");
@@ -60,10 +60,10 @@ class LibrarySeatMcpToolTests {
     @Test
     void connectorParseErrorMapsToFriendlyKoreanMessage() {
         LibrarySeatService service = mock(LibrarySeatService.class);
-        when(service.getSeatStatus(LibraryFloor.F4)).thenThrow(new ConnectorParseException());
+        when(service.getSeatStatus(LibraryFloor.F2)).thenThrow(new ConnectorParseException());
         LibrarySeatMcpTool tool = new LibrarySeatMcpTool(service);
 
-        assertThatThrownBy(() -> tool.getLibrarySeatStatus(4))
+        assertThatThrownBy(() -> tool.getLibrarySeatStatus(2))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("도서관 좌석")
                 .hasMessageContaining("응답 구조가 변경");
