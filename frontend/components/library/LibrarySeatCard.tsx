@@ -24,7 +24,7 @@ const FLOOR_OPTIONS: ReadonlyArray<{ code: LibraryFloorCode; label: string }> = 
   { code: 6, label: "6층" },
 ];
 
-const DEFAULT_FLOOR: LibraryFloorCode = 4;
+const DEFAULT_FLOOR: LibraryFloorCode = 2;
 
 function LibrarySeatSkeleton() {
   return (
