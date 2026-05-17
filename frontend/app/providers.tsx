@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { LibraryAuthProvider } from "@/contexts/LibraryAuthContext";
 import { SaintAuthProvider } from "@/hooks/useSaintAuth";
 import { ApiError } from "@/lib/api/types";
 
@@ -33,7 +34,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SaintAuthProvider>{children}</SaintAuthProvider>
+      <SaintAuthProvider>
+        <LibraryAuthProvider>{children}</LibraryAuthProvider>
+      </SaintAuthProvider>
     </QueryClientProvider>
   );
 }

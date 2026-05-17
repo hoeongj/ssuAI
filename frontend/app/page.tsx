@@ -1,6 +1,7 @@
 import { MessageCircle } from "lucide-react";
 import Link from "next/link";
 
+import { HeaderAuthStatus } from "@/components/auth/HeaderAuthStatus";
 import { UserGreeting } from "@/components/auth/UserGreeting";
 import { DormWeeklyCard } from "@/components/dorm/DormWeeklyCard";
 import { FacilitySearchCard } from "@/components/facility/FacilitySearchCard";
@@ -25,6 +26,7 @@ export default function Home() {
           </h1>
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <HeaderAuthStatus />
           <UserGreeting />
           <Link
             href="/chat"

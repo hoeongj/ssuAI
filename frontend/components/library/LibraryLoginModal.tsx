@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useLibraryAuth } from "@/contexts/LibraryAuthContext";
 import { useLibrarySession } from "@/hooks/useLibrarySession";
 
 interface LibraryLoginModalProps {
@@ -14,13 +15,13 @@ interface LibraryLoginModalProps {
 export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
   const [token, setToken] = useState("");
   const { state, errorMessage, submitToken } = useLibrarySession();
+  const { setConnected } = useLibraryAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -34,6 +35,7 @@ export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
     if (!token.trim()) return;
     const ok = await submitToken(token);
     if (ok) {
+      setConnected(true);
       setTimeout(onClose, 800);
     }
   }
@@ -57,7 +59,7 @@ export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
               도서관 연동
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              실시간 좌석 현황을 조회하려면 Pyxis-Auth-Token이 필요합니다.
+              좌석 현황·대출 내역 조회에 필요합니다. (약 2시간 유효)
             </p>
           </div>
           <button
@@ -70,47 +72,32 @@ export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
           </button>
         </div>
 
-        <ol className="mb-4 space-y-1.5 text-sm text-muted-foreground">
-          <li>
-            <span className="font-medium text-foreground">1.</span>{" "}
-            <a
-              href="https://oasis.ssu.ac.kr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2"
-            >
-              oasis.ssu.ac.kr
-            </a>
-            에 로그인합니다.
-          </li>
-          <li>
-            <span className="font-medium text-foreground">2.</span>{" "}
-            좌석 예약 페이지로 이동합니다.
-          </li>
-          <li>
-            <span className="font-medium text-foreground">3.</span>{" "}
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-xs">
-              F12
-            </kbd>{" "}
-            → Network 탭 → <code className="font-mono text-xs">pyxis-api</code> 요청 클릭
-          </li>
-          <li>
-            <span className="font-medium text-foreground">4.</span>{" "}
-            Request Headers에서{" "}
-            <code className="font-mono text-xs">Pyxis-Auth-Token</code> 값 복사
-          </li>
-          <li>
-            <span className="font-medium text-foreground">5.</span>{" "}
-            아래에 붙여넣기 후 확인 (약 2시간 유효)
-          </li>
-        </ol>
+        <div className="mb-4 space-y-2.5">
+          <a
+            href="https://oasis.ssu.ac.kr"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            oasis.ssu.ac.kr 열고 로그인하기
+          </a>
+          <div className="rounded-md bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">로그인 후 토큰 복사:</p>
+            <ol className="mt-1 space-y-0.5 leading-relaxed">
+              <li>① 좌석 예약 페이지로 이동</li>
+              <li>② F12 → Network 탭 → pyxis-api 요청 클릭</li>
+              <li>③ Request Headers에서 <code className="font-mono">Pyxis-Auth-Token</code> 복사</li>
+            </ol>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <textarea
             ref={textareaRef}
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            placeholder="Pyxis-Auth-Token 값 붙여넣기"
+            placeholder="복사한 Pyxis-Auth-Token 붙여넣기"
             rows={3}
             className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             disabled={isSubmitting || state === "success"}
@@ -121,7 +108,7 @@ export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
           ) : null}
 
           {state === "success" ? (
-            <p className="text-sm text-emerald-600">연동 완료! 좌석 현황을 불러오는 중…</p>
+            <p className="text-sm text-emerald-600">연동 완료! 데이터를 불러오는 중…</p>
           ) : null}
 
           <div className="flex justify-end gap-2">

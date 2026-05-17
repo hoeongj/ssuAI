@@ -20,6 +20,7 @@ export function useLibrarySession() {
       await captureLibrarySession(token.trim());
       setState("success");
       await queryClient.invalidateQueries({ queryKey: ["library", "seats"] });
+      await queryClient.invalidateQueries({ queryKey: ["library", "loans"] });
       return true;
     } catch {
       setState("error");
