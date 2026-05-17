@@ -17,7 +17,12 @@ ssuai:
   connector:
     meal: real
     dorm-meal: real
+    library-seat: ${SSUAI_CONNECTOR_LIBRARY_SEAT:real}
     library-book: real
+    library-loans: ${SSUAI_CONNECTOR_LIBRARY_LOANS:real}
+    saint-schedule: ${SSUAI_CONNECTOR_SAINT_SCHEDULE:real}
+    saint-grades: ${SSUAI_CONNECTOR_SAINT_GRADES:real}
+    lms-assignments: ${SSUAI_CONNECTOR_LMS_ASSIGNMENTS:real}
     chat: ${SSUAI_CONNECTOR_CHAT:mock}
   # Production CORS allowlist — exactly one origin (the deployed Vercel
   # project), wired into WebCorsProdConfig. The value is supplied at
