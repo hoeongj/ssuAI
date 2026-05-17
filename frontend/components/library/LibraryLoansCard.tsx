@@ -1,10 +1,13 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
+import { BookOpen, LogIn } from "lucide-react";
+import { useState } from "react";
 
+import { LibraryLoginModal } from "@/components/library/LibraryLoginModal";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState, getErrorStateDetails } from "@/components/shared/ErrorState";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLibraryLoans } from "@/hooks/useLibraryLoans";
@@ -25,6 +28,8 @@ function LoansSkeleton() {
 export function LibraryLoansCard() {
   const { data, error, isLoading, refetch } = useLibraryLoans();
   const errorState = getErrorStateDetails(error);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const needsAuth = errorState?.code === "LIBRARY_SESSION_REQUIRED";
 
   return (
     <Card className="h-full">
@@ -35,14 +40,28 @@ export function LibraryLoansCard() {
       <CardContent className="space-y-3">
         {isLoading && <LoansSkeleton />}
 
-        {errorState && (
+        {needsAuth ? (
+          <div className="flex flex-col items-start gap-3 rounded-md border border-border bg-muted/40 p-4">
+            <p className="text-sm text-muted-foreground">
+              대출 현황은 도서관 연동이 필요합니다.
+            </p>
+            <Button size="sm" onClick={() => setShowLoginModal(true)}>
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              도서관 연동
+            </Button>
+          </div>
+        ) : errorState ? (
           <ErrorState
             code={errorState.code}
             message={errorState.message}
             traceId={errorState.traceId}
             onRetry={() => void refetch()}
           />
-        )}
+        ) : null}
+
+        {showLoginModal ? (
+          <LibraryLoginModal onClose={() => setShowLoginModal(false)} />
+        ) : null}
 
         {data && !errorState && (
           <>
