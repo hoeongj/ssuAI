@@ -15,6 +15,7 @@ import { ApiError } from "@/lib/api/types";
 
 export interface SaintAuthState {
   user: AuthMe | null;
+  accessToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   /** Force a refresh-cookie → access-JWT → /me cycle. Returns true on success. */
@@ -79,6 +80,7 @@ export function SaintAuthProvider({ children }: { children: ReactNode }) {
 
   const value: SaintAuthState = {
     user,
+    accessToken,
     isLoading,
     isAuthenticated: !!accessToken && !!user,
     refresh,

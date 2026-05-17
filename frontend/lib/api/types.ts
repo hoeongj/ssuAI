@@ -96,6 +96,110 @@ export interface LibrarySeatStatusResponse {
   zones: LibrarySeatZone[];
 }
 
+export type BookStatus = "AVAILABLE" | "CHECKED_OUT" | "UNKNOWN";
+
+export interface LibraryBook {
+  id: number;
+  title: string;
+  author: string;
+  publication: string;
+  isbn: string;
+  thumbnailUrl: string;
+  callNumber: string;
+  location: string;
+  status: BookStatus;
+}
+
+export interface LibraryBookSearchResponse {
+  total: number;
+  page: number;
+  size: number;
+  items: LibraryBook[];
+}
+
+export interface LibraryLoanItem {
+  id: number;
+  title: string;
+  author: string;
+  callNumber: string;
+  loanDate: string;
+  dueDate: string;
+  isOverdue: boolean;
+  isRenewable: boolean;
+}
+
+export interface LibraryLoansResponse {
+  total: number;
+  loans: LibraryLoanItem[];
+}
+
+export interface ScheduleEntry {
+  dayOfWeek: number;
+  dayLabel: string;
+  period: number;
+  timeRange: string;
+  course: string;
+  professor: string;
+  room: string;
+}
+
+export interface TermSchedule {
+  year: number;
+  term: number;
+  entries: ScheduleEntry[];
+}
+
+export interface ScheduleResponse {
+  enrollmentYear: number;
+  currentYear: number;
+  currentTerm: number;
+  terms: TermSchedule[];
+}
+
+export interface TermGpa {
+  year: number;
+  term: string;
+  requestedCredits: number;
+  earnedCredits: number;
+  passFailCredits: number;
+  gpa: number;
+  gpaSum: number;
+  arithmeticAverage: number;
+  rankInTerm: string;
+  rankOverall: string;
+  academicWarning: boolean;
+  counseling: boolean;
+  repeatedYear: boolean;
+}
+
+export interface GpaSummary {
+  requestedCredits: number;
+  earnedCredits: number;
+  gpaSum: number;
+  gpa: number;
+  arithmeticAverage: number;
+  passFailCredits: number;
+}
+
+export interface GradesResponse {
+  history: TermGpa[];
+  academicRecord: GpaSummary;
+  certificate: GpaSummary;
+  detailsByTerm: Record<string, unknown[]>;
+}
+
+export interface AssignmentItem {
+  courseName: string;
+  title: string;
+  type: string;
+  dueDate: string | null;
+}
+
+export interface AssignmentsResponse {
+  termId: number;
+  items: AssignmentItem[];
+}
+
 export interface ChatRequest {
   conversationId?: string;
   message: string;

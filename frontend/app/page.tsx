@@ -4,9 +4,14 @@ import Link from "next/link";
 import { UserGreeting } from "@/components/auth/UserGreeting";
 import { DormWeeklyCard } from "@/components/dorm/DormWeeklyCard";
 import { FacilitySearchCard } from "@/components/facility/FacilitySearchCard";
+import { LibraryBookSearchCard } from "@/components/library/LibraryBookSearchCard";
+import { LibraryLoansCard } from "@/components/library/LibraryLoansCard";
 import { LibrarySeatCard } from "@/components/library/LibrarySeatCard";
+import { AssignmentsCard } from "@/components/lms/AssignmentsCard";
 import { TodayMealCard } from "@/components/meal/TodayMealCard";
 import { WeeklyMealCard } from "@/components/meal/WeeklyMealCard";
+import { GradesCard } from "@/components/saint/GradesCard";
+import { ScheduleCard } from "@/components/saint/ScheduleCard";
 import { buttonVariants } from "@/components/ui/button";
 
 export default function Home() {
@@ -31,12 +36,18 @@ export default function Home() {
           </Link>
         </div>
       </header>
+
       <section className="grid gap-4 md:grid-cols-2">
         <TodayMealCard />
         <FacilitySearchCard />
         <WeeklyMealCard />
         <DormWeeklyCard />
         <LibrarySeatCard />
+        <LibraryBookSearchCard />
+        <ScheduleCard />
+        <GradesCard />
+        <AssignmentsCard />
+        <LibraryLoansCard />
       </section>
     </main>
   );
