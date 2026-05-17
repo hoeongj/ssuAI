@@ -14,6 +14,12 @@ data:
   JAVA_OPTS: {{ .Values.env.javaOpts | quote }}
   SSUAI_CONNECTOR_MEAL: {{ .Values.env.connectorMeal | quote }}
   SSUAI_CONNECTOR_DORM_MEAL: {{ .Values.env.connectorDormMeal | quote }}
+  SSUAI_CONNECTOR_LIBRARY_BOOK: {{ .Values.env.connectorLibraryBook | quote }}
+  SSUAI_CONNECTOR_LIBRARY_LOANS: {{ .Values.env.connectorLibraryLoans | quote }}
+  SSUAI_CONNECTOR_LIBRARY_SEAT: {{ .Values.env.connectorLibrarySeat | quote }}
+  SSUAI_CONNECTOR_SAINT_SCHEDULE: {{ .Values.env.connectorSaintSchedule | quote }}
+  SSUAI_CONNECTOR_SAINT_GRADES: {{ .Values.env.connectorSaintGrades | quote }}
+  SSUAI_CONNECTOR_LMS_ASSIGNMENTS: {{ .Values.env.connectorLmsAssignments | quote }}
   SSUAI_CONNECTOR_CHAT: {{ .Values.env.connectorChat | quote }}
   SSUAI_MISTRAL_TRAINING_OPT_OUT_CONFIRMED: {{ .Values.env.mistralTrainingOptOutConfirmed | quote }}
   SSUAI_LLM_MAX_TOKENS: {{ .Values.env.llmMaxTokens | quote }}

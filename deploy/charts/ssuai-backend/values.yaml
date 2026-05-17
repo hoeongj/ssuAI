@@ -23,6 +23,12 @@ env:
   javaOpts: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
   connectorMeal: real
   connectorDormMeal: real
+  connectorLibraryBook: real
+  connectorLibraryLoans: real
+  connectorLibrarySeat: real
+  connectorSaintSchedule: real
+  connectorSaintGrades: real
+  connectorLmsAssignments: real
   connectorChat: llm
   mistralTrainingOptOutConfirmed: "false"
   llmMaxTokens: "400"
