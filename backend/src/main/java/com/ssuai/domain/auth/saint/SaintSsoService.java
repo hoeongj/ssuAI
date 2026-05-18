@@ -105,6 +105,9 @@ public class SaintSsoService {
         String mergedCookies = mergeCookieHeaders(phase1Cookies, phase2Cookies);
 
         log.info("saint sso cookies stored: names={}", cookieNames(mergedCookies));
+        // Temporary diagnostic: log MYSAPSSO2 prefix to compare with browser value
+        String mysapPrefix = extractCookiePrefix(mergedCookies, "MYSAPSSO2", 24);
+        log.info("saint sso mysapsso2 prefix(24)={}", mysapPrefix);
 
         UsaintAuthResult identity = parseIdentity(phase2.getBody(), sIdno);
         sessionStore.put(identity.studentId(), new PortalCookies(mergedCookies));
@@ -237,5 +240,17 @@ public class SaintSsoService {
             if (eq > 0) names.add(trimmed.substring(0, eq).trim());
         }
         return String.join(",", names);
+    }
+
+    private static String extractCookiePrefix(String cookieHeader, String name, int prefixLen) {
+        for (String pair : cookieHeader.split(";")) {
+            String trimmed = pair.trim();
+            int eq = trimmed.indexOf('=');
+            if (eq > 0 && trimmed.substring(0, eq).trim().equals(name)) {
+                String value = trimmed.substring(eq + 1).trim();
+                return value.substring(0, Math.min(prefixLen, value.length()));
+            }
+        }
+        return "(not found)";
     }
 }
