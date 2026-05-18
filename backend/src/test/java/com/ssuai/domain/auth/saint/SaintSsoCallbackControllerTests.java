@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -94,8 +95,10 @@ class SaintSsoCallbackControllerTests {
         mockMvc.perform(get("/api/auth/saint/sso-callback")
                         .param("sToken", "st-one-shot")
                         .param("sIdno", "20231234"))
-                .andExpect(status().isFound())
-                .andExpect(redirectedUrl("https://ssuai.vercel.app/auth/return?ok=1"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/html"))
+                .andExpect(content().string(Matchers.containsString(
+                        "https://ssuai.vercel.app/auth/return?ok=1")))
                 .andExpect(header().string("Set-Cookie",
                         Matchers.containsString("ssuai_refresh=refresh.jwt.value")))
                 .andExpect(header().string("Set-Cookie",

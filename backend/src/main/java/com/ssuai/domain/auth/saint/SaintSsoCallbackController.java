@@ -97,7 +97,7 @@ public class SaintSsoCallbackController {
     }
 
     @GetMapping("/sso-callback")
-    public ResponseEntity<Void> ssoCallback(
+    public ResponseEntity<String> ssoCallback(
             @RequestParam(required = false) String sToken,
             @RequestParam(required = false) String sIdno,
             HttpServletResponse response) {
@@ -122,7 +122,11 @@ public class SaintSsoCallbackController {
                 log.info("saint sso-callback: LMS auth skipped ({})", lmsEx.getMessage());
             }
 
-            return redirect(frontendReturn("ok", "1"));
+            // Return 200 + meta-refresh HTML instead of 302 so that Vercel's
+            // rewrite proxy forwards the Set-Cookie header to the browser.
+            // Vercel drops Set-Cookie on proxied 302 responses, so the refresh
+            // cookie would never reach the browser if we used a plain redirect.
+            return htmlRedirect(frontendReturn("ok", "1"));
         } catch (SaintAuthFailedException exception) {
             log.info("saint sso-callback auth failed: {}", exception.getMessage());
             return redirect(frontendReturn("error", "auth_failed"));
@@ -153,7 +157,19 @@ public class SaintSsoCallbackController {
                 + URLEncoder.encode(value, StandardCharsets.UTF_8));
     }
 
-    private static ResponseEntity<Void> redirect(URI location) {
+    private static ResponseEntity<String> redirect(URI location) {
         return ResponseEntity.status(HttpStatus.FOUND).location(location).build();
+    }
+
+    private static ResponseEntity<String> htmlRedirect(URI location) {
+        String url = location.toString()
+                .replace("&", "&amp;")
+                .replace("\"", "&quot;");
+        String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\">"
+                + "<meta http-equiv=\"refresh\" content=\"0;url=" + url + "\">"
+                + "</head><body></body></html>";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, "text/html; charset=UTF-8")
+                .body(html);
     }
 }
