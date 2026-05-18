@@ -84,7 +84,7 @@ class RealSaintScheduleConnectorTests {
         server.enqueue(htmlOk(withSecureId(loadFixture(), "CSRF-GET")));
 
         ScheduleResponse response = connector.fetchSchedule("20261234",
-                new PortalCookies("MYSAPSSO2=abc"));
+                new PortalCookies("WAF=portal; MYSAPSSO2=abc; JSESSIONID=saint-only"));
 
         assertThat(response.terms()).hasSize(1);
         assertThat(response.terms().get(0).entries()).hasSize(7);
@@ -93,6 +93,8 @@ class RealSaintScheduleConnectorTests {
         RecordedRequest getReq = server.takeRequest();
         assertThat(getReq.getMethod()).isEqualTo("GET");
         assertThat(getReq.getHeader("Cookie")).contains("MYSAPSSO2=abc");
+        assertThat(getReq.getHeader("Cookie")).doesNotContain("WAF=portal");
+        assertThat(getReq.getHeader("Cookie")).doesNotContain("JSESSIONID=saint-only");
     }
 
     @Test

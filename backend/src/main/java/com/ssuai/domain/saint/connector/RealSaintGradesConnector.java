@@ -103,7 +103,7 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
 
     @Override
     public GradesResponse fetchGrades(String studentId, PortalCookies cookies) {
-        InitGetResult initGet = httpGetFollowCookies(cookies.rawCookieHeader(),
+        InitGetResult initGet = httpGetFollowCookies(eccBootstrapCookieHeader(cookies.rawCookieHeader()),
                 properties.getGradesUrl(), "saint grades");
         String rawFirstResponse = initGet.html();
         String mergedCookieHeader = initGet.cookieHeader();
@@ -354,6 +354,31 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
                 int semi = setCookie.indexOf(';');
                 String pair = semi < 0 ? setCookie : setCookie.substring(0, semi);
                 addPair(jar, pair.trim());
+            }
+        }
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> entry : jar.entrySet()) {
+            if (out.length() > 0) {
+                out.append("; ");
+            }
+            out.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        return out.toString();
+    }
+
+    static String eccBootstrapCookieHeader(String portalCookieHeader) {
+        LinkedHashMap<String, String> jar = new LinkedHashMap<>();
+        if (portalCookieHeader != null && !portalCookieHeader.isBlank()) {
+            for (String pair : portalCookieHeader.split(";")) {
+                String trimmed = pair.trim();
+                int eq = trimmed.indexOf('=');
+                if (eq <= 0) {
+                    continue;
+                }
+                String name = trimmed.substring(0, eq).trim();
+                if ("MYSAPSSO2".equals(name)) {
+                    addPair(jar, trimmed);
+                }
             }
         }
         StringBuilder out = new StringBuilder();

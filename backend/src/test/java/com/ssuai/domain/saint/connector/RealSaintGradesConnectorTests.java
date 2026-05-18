@@ -105,7 +105,7 @@ class RealSaintGradesConnectorTests {
         }
 
         GradesResponse response = connector.fetchGrades("20221528",
-                new PortalCookies("MYSAPSSO2=abc"));
+                new PortalCookies("WAF=portal; MYSAPSSO2=abc; JSESSIONID=saint-only"));
 
         assertThat(response.history()).hasSize(6);
         assertThat(response.academicRecord().gpa()).isEqualTo(3.50d);
@@ -114,6 +114,9 @@ class RealSaintGradesConnectorTests {
 
         RecordedRequest first = server.takeRequest();
         assertThat(first.getMethod()).isEqualTo("GET");
+        assertThat(first.getHeader("Cookie")).contains("MYSAPSSO2=abc");
+        assertThat(first.getHeader("Cookie")).doesNotContain("WAF=portal");
+        assertThat(first.getHeader("Cookie")).doesNotContain("JSESSIONID=saint-only");
         RecordedRequest firstPrevPost = server.takeRequest();
         assertThat(firstPrevPost.getMethod()).isEqualTo("POST");
         assertThat(firstPrevPost.getBody().readUtf8())

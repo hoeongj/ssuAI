@@ -6,6 +6,7 @@ import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { MessageBubble, type ChatMessageRole } from "@/components/chat/MessageBubble";
 import { ErrorState, getErrorStateDetails, type ErrorStateDetails } from "@/components/shared/ErrorState";
 import { Button } from "@/components/ui/button";
+import { useSaintAuth } from "@/hooks/useSaintAuth";
 import { sendChatMessage } from "@/lib/api/chat";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ function nextMessageId() {
 }
 
 export function ChatPanel() {
+  const { accessToken } = useSaintAuth();
   const [conversationId, setConversationId] = useState<string>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -61,7 +63,7 @@ export function ChatPanel() {
     setIsSending(true);
 
     try {
-      const response = await sendChatMessage({ conversationId, message: trimmed });
+      const response = await sendChatMessage({ conversationId, message: trimmed }, accessToken);
       setConversationId(response.conversationId);
       setMessages((current) => [
         ...current,
