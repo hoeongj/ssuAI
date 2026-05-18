@@ -48,6 +48,16 @@ class WebDynproSapEventEncoderTests {
     }
 
     @Test
+    void encodeInitialLoadPostsOnlyFormRequestForBootstrapRender() {
+        String queue = WebDynproSapEventEncoder.encodeInitialLoad();
+
+        assertThat(queue).startsWith("Form_Request");
+        assertThat(queue).contains("Id~E004sap.client.SsrClient.form");
+        assertThat(queue).contains("ResponseData~E004delta");
+        assertThat(queue).doesNotContain("Button_Press");
+    }
+
+    @Test
     void encodeButtonPressRejectsBlankElementId() {
         assertThatThrownBy(() -> WebDynproSapEventEncoder.encodeButtonPress(null))
                 .isInstanceOf(IllegalArgumentException.class);

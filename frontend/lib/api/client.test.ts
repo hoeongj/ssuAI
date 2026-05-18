@@ -32,7 +32,7 @@ describe("fetchJson", () => {
 
     await expect(fetchJson<{ ok: boolean }>("/api/meals/today")).resolves.toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8080/api/meals/today",
+      "/api/meals/today",
       expect.objectContaining({
         headers: expect.any(Headers),
       }),
@@ -131,13 +131,23 @@ describe("fetchJson", () => {
     await expect(fetchJson("/api/meals/today")).rejects.toBe(networkError);
   });
 
-  it("throws a clear config error when NEXT_PUBLIC_SSUAI_API_BASE is missing", async () => {
+  it("uses same-origin /api when NEXT_PUBLIC_SSUAI_API_BASE is missing in the browser", async () => {
     const { fetchJson } = await importClient(null);
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        data: { ok: true },
+        error: null,
+        traceId: "trace-1",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchJson("/api/meals/today")).rejects.toMatchObject({
-      code: "CONFIG_ERROR",
-      message: "NEXT_PUBLIC_SSUAI_API_BASE is required. Set it in frontend/.env.local.",
-      httpStatus: 0,
-    });
+    await expect(fetchJson<{ ok: boolean }>("/api/meals/today")).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/meals/today",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
   });
 });

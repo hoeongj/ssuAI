@@ -54,10 +54,11 @@ class RealSaintScheduleConnectorTests {
 
     @Test
     void enrollmentAlreadyAtCurrentTermDoesOneGetAndZeroPosts() throws Exception {
-        // pinned fixture shows (2026, 1학기). Student enrolled 2026-1학기 →
-        // displayedTerm already at the enrollment-start anchor → no PREV
-        // POST needed.
-        server.enqueue(htmlOk(loadFixture()));
+        // Chrome UA → SAP WDA returns JS bootstrap on GET, then serves the
+        // real timetable HTML on the initial Form_Request POST.
+        // Pinned fixture shows (2026, 1학기). Enrolled 2026 → no PREV needed.
+        server.enqueue(htmlOk(withSecureId("<html><body></body></html>", "CSRF-BOOT")));
+        server.enqueue(xmlOk(wrap(loadFixture()))); // initial load response
 
         ScheduleResponse response = connector.fetchSchedule("20261234",
                 new PortalCookies("MYSAPSSO2=abc"));
@@ -67,19 +68,24 @@ class RealSaintScheduleConnectorTests {
         assertThat(response.currentTerm()).isEqualTo(1);
         assertThat(response.terms()).hasSize(1);
         assertThat(response.terms().get(0).entries()).hasSize(7);
-        assertThat(server.getRequestCount()).isEqualTo(1);
+        assertThat(server.getRequestCount()).isEqualTo(2); // GET + initial load POST
 
-        RecordedRequest first = server.takeRequest();
-        assertThat(first.getMethod()).isEqualTo("GET");
-        assertThat(first.getHeader("Cookie")).contains("MYSAPSSO2=abc");
+        RecordedRequest getReq = server.takeRequest();
+        assertThat(getReq.getMethod()).isEqualTo("GET");
+        assertThat(getReq.getHeader("Cookie")).contains("MYSAPSSO2=abc");
+
+        RecordedRequest initPost = server.takeRequest();
+        assertThat(initPost.getMethod()).isEqualTo("POST");
+        assertThat(initPost.getBody().readUtf8()).contains("sap-wd-secure-id=CSRF-BOOT");
     }
 
     @Test
     void multiTermIteratePostsPrevButtonPerStepAndLabelsEachHopFromTheResponse() throws Exception {
-        // Construct a 4-step iterate. GET sits at (2026, 1학기) → PREV →
-        // (2025, 4=겨울) → PREV → (2025, 3=2학기) → PREV → (2025, 2=여름)
-        // → PREV → (2025, 1=1학기). Student enrolled 2025-1학기 → stop.
-        String getBody = withSecureId(synthFixture(2026, "1학기"), "CSRF-0");
+        // GET → bootstrap (CSRF-BOOT) → initial POST returns 2026/1학기 (CSRF-0)
+        // → 4 PREV POSTs walk back through (겨울→2학기→여름→1학기). Student
+        // enrolled 2025-1학기 → stops after 1학기 response.
+        String bootstrap = withSecureId("<html><body></body></html>", "CSRF-BOOT");
+        String initLoad = wrap(withSecureId(synthFixture(2026, "1학기"), "CSRF-0"));
         String postWinter2025 = wrap(withSecureId(synthFixture(2025, "겨울학기"), "CSRF-1"));
         String postFall2025 = wrap(withSecureId(synthFixture(2025, "2학기"), "CSRF-2"));
         String postSummer2025 = wrap(withSecureId(synthFixture(2025, "여름학기"), "CSRF-3"));
@@ -89,7 +95,8 @@ class RealSaintScheduleConnectorTests {
                 .setResponseCode(200)
                 .setHeader("Content-Type", "text/html; charset=utf-8")
                 .addHeader("Set-Cookie", "SAP_SESSIONID_SSP_100=ABCD; Path=/")
-                .setBody(getBody));
+                .setBody(bootstrap));
+        server.enqueue(xmlOk(initLoad));
         server.enqueue(xmlOk(postWinter2025));
         server.enqueue(xmlOk(postFall2025));
         server.enqueue(xmlOk(postSummer2025));
@@ -98,14 +105,11 @@ class RealSaintScheduleConnectorTests {
         ScheduleResponse response = connector.fetchSchedule("20251234",
                 new PortalCookies("MYSAPSSO2=abc"));
 
-        // GET + 4 PREV POSTs = 5 server hits / 5 terms.
-        assertThat(server.getRequestCount()).isEqualTo(5);
+        // GET + initial POST + 4 PREV POSTs = 6 server hits / 5 terms.
+        assertThat(server.getRequestCount()).isEqualTo(6);
         assertThat(response.terms()).hasSize(5);
-        // First entry is the GET-displayed term.
         assertThat(response.terms().get(0).year()).isEqualTo(2026);
         assertThat(response.terms().get(0).term()).isEqualTo(1);
-        // Each subsequent entry came from parsing the POST response — not
-        // from a clock-based calculation — so the cycle order is exact.
         assertThat(response.terms().get(1).year()).isEqualTo(2025);
         assertThat(response.terms().get(1).term()).isEqualTo(4);
         assertThat(response.terms().get(2).term()).isEqualTo(3);
@@ -114,25 +118,29 @@ class RealSaintScheduleConnectorTests {
         assertThat(response.terms().get(4).term()).isEqualTo(1);
 
         server.takeRequest(); // skip GET
-        RecordedRequest firstPost = server.takeRequest();
-        assertThat(firstPost.getMethod()).isEqualTo("POST");
-        String firstBody = firstPost.getBody().readUtf8();
-        assertThat(firstBody).contains("sap-wd-secure-id=CSRF-0");
-        assertThat(firstBody).contains("SAPEVENTQUEUE=");
+        RecordedRequest initPost = server.takeRequest();
+        assertThat(initPost.getMethod()).isEqualTo("POST");
+        String initBody = initPost.getBody().readUtf8();
+        assertThat(initBody).contains("sap-wd-secure-id=CSRF-BOOT");
+        assertThat(initBody).contains("SAPEVENTQUEUE=");
         // mergeSetCookies must carry the upstream Set-Cookie through to the POST.
-        assertThat(firstPost.getHeader("Cookie"))
+        assertThat(initPost.getHeader("Cookie"))
                 .contains("MYSAPSSO2=abc")
                 .contains("SAP_SESSIONID_SSP_100=ABCD");
 
-        RecordedRequest secondPost = server.takeRequest();
-        assertThat(secondPost.getBody().readUtf8()).contains("sap-wd-secure-id=CSRF-1");
+        RecordedRequest firstPrevPost = server.takeRequest();
+        assertThat(firstPrevPost.getBody().readUtf8()).contains("sap-wd-secure-id=CSRF-0");
+
+        RecordedRequest secondPrevPost = server.takeRequest();
+        assertThat(secondPrevPost.getBody().readUtf8()).contains("sap-wd-secure-id=CSRF-1");
     }
 
     @Test
     void iterateStopsWhenSecureIdGoesMissingMidWalk() throws Exception {
-        // GET returns the timetable but with NO secure-id input — iterate
-        // refuses to POST without a CSRF token and returns only the current term.
-        server.enqueue(htmlOk(loadFixture()));
+        // Bootstrap GET provides CSRF-BOOT; initial POST returns the timetable
+        // but WITHOUT a secure-id, so the iterate loop cannot PREV-POST and stops.
+        server.enqueue(htmlOk(withSecureId("<html><body></body></html>", "CSRF-BOOT")));
+        server.enqueue(xmlOk(wrap(loadFixture()))); // no secure-id in payload
 
         ScheduleResponse response = connector.fetchSchedule("20221234",
                 new PortalCookies("MYSAPSSO2=abc"));
@@ -140,7 +148,7 @@ class RealSaintScheduleConnectorTests {
         assertThat(response.terms()).hasSize(1);
         assertThat(response.terms().get(0).year()).isEqualTo(2026);
         assertThat(response.terms().get(0).term()).isEqualTo(1);
-        assertThat(server.getRequestCount()).isEqualTo(1);
+        assertThat(server.getRequestCount()).isEqualTo(2); // GET + initial POST only
     }
 
     @Test

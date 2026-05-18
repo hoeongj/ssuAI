@@ -27,7 +27,7 @@ import com.ssuai.global.exception.LibraryAuthRequiredException;
 
 /**
  * Fetches the authenticated user's current library loans from
- * oasis.ssu.ac.kr via GET /pyxis-api/1/charges?offset=0&max=20.
+ * oasis.ssu.ac.kr via GET /pyxis-api/1/api/charges?offset=0&max=20.
  * Returns empty list when the upstream responds with success.noRecord.
  */
 @Component
@@ -36,11 +36,13 @@ public class RealLibraryLoansConnector implements LibraryLoansConnector {
 
     private static final Logger log = LoggerFactory.getLogger(RealLibraryLoansConnector.class);
 
-    private static final String LOANS_PATH = "/pyxis-api/1/charges?offset=0&max=20";
+    private static final String LOANS_PATH = "/pyxis-api/1/api/charges?offset=0&max=20";
+    private static final String LOANS_REFERER = "https://oasis.ssu.ac.kr/mylibrary/charge/charges";
+    private static final String BROWSER_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private static final String NEED_LOGIN_CODE = "error.authentication.needLogin";
     private static final String NO_RECORD_CODE = "success.noRecord";
 
-    private final LibrarySeatProperties properties;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
 
@@ -49,7 +51,6 @@ public class RealLibraryLoansConnector implements LibraryLoansConnector {
             ObjectMapper objectMapper,
             @Qualifier("librarySeatRestClient") RestClient restClient
     ) {
-        this.properties = properties;
         this.objectMapper = objectMapper;
         this.restClient = restClient;
     }
@@ -66,8 +67,9 @@ public class RealLibraryLoansConnector implements LibraryLoansConnector {
                     .uri(LOANS_PATH)
                     .accept(MediaType.APPLICATION_JSON)
                     .header("Pyxis-Auth-Token", token != null ? token : "")
-                    .header("Referer", properties.getReferer())
+                    .header("Referer", LOANS_REFERER)
                     .header("Accept-Language", "ko")
+                    .header("User-Agent", BROWSER_UA)
                     .retrieve()
                     .body(String.class);
         } catch (ResourceAccessException exception) {
@@ -123,13 +125,14 @@ public class RealLibraryLoansConnector implements LibraryLoansConnector {
 
     private static LibraryLoanItem toLoanItem(JsonNode entry) {
         long id = entry.path("id").asLong(0L);
-        String title = textOr(entry.path("title"), "(제목 미상)");
-        String author = textOr(entry.path("author"), null);
-        String callNumber = textOr(entry.path("callNumber"), null);
-        LocalDate loanDate = parseDate(entry.path("loanDate").asText(null));
-        LocalDate dueDate  = parseDate(entry.path("returnDate").asText(null));
-        boolean overdue    = entry.path("isOverdue").asBoolean(false);
-        boolean renewable  = entry.path("isRenewable").asBoolean(false);
+        JsonNode biblio = entry.path("biblio");
+        String title = textOr(firstPresent(biblio.path("titleStatement"), entry.path("title")), "(제목 미상)");
+        String author = textOr(firstPresent(biblio.path("author"), entry.path("author")), null);
+        String callNumber = textOr(firstPresent(entry.path("callNo"), entry.path("callNumber")), null);
+        LocalDate loanDate = parseDate(textOr(firstPresent(entry.path("chargeDate"), entry.path("loanDate")), null));
+        LocalDate dueDate  = parseDate(textOr(firstPresent(entry.path("dueDate"), entry.path("returnDate")), null));
+        boolean overdue    = entry.path("isOverdue").asBoolean(entry.path("overdueDays").asInt(0) > 0);
+        boolean renewable  = entry.path("isRenewable").asBoolean(entry.path("isRenewed").asBoolean(false));
         return new LibraryLoanItem(id, title, author, callNumber, loanDate, dueDate, overdue, renewable);
     }
 
@@ -151,5 +154,12 @@ public class RealLibraryLoansConnector implements LibraryLoansConnector {
         }
         String text = node.asText("");
         return text.isBlank() ? fallback : text;
+    }
+
+    private static JsonNode firstPresent(JsonNode primary, JsonNode fallback) {
+        if (primary != null && !primary.isNull() && !primary.isMissingNode()) {
+            return primary;
+        }
+        return fallback;
     }
 }

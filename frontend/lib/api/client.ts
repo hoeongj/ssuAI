@@ -1,17 +1,14 @@
 import { ApiError, type ApiErrorBody, type ApiResponse } from "./types";
 
-function getApiBaseUrl() {
-  const rawBaseUrl = process.env.NEXT_PUBLIC_SSUAI_API_BASE;
-
-  if (!rawBaseUrl) {
-    throw new ApiError(
-      "CONFIG_ERROR",
-      "NEXT_PUBLIC_SSUAI_API_BASE is required. Set it in frontend/.env.local.",
-      "",
-      0,
-    );
+export function getApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return "";
   }
 
+  const rawBaseUrl = process.env.NEXT_PUBLIC_SSUAI_API_BASE?.trim();
+  if (!rawBaseUrl) {
+    return "";
+  }
   return rawBaseUrl.replace(/\/$/, "");
 }
 

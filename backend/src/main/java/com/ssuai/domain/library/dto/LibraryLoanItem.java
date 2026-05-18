@@ -3,7 +3,7 @@ package com.ssuai.domain.library.dto;
 import java.time.LocalDate;
 
 /**
- * Single checkout record returned by /pyxis-api/1/charges.
+ * Single checkout record returned by /pyxis-api/1/api/charges.
  *
  * @param id         Pyxis charge (loan) ID
  * @param title      Book title

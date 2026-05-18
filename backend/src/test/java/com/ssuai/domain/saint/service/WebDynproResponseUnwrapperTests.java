@@ -109,6 +109,26 @@ class WebDynproResponseUnwrapperTests {
     }
 
     @Test
+    void extractSecureIdFromAnyHandlesXmlParameterUpdate() {
+        String xml = """
+                <updates>
+                  <parameter-update id="sap-wd-secure-id" readonly="false"
+                      name="sap-wd-secure-id" type="hidden" value="XML-CSRF-1"/>
+                </updates>
+                """;
+
+        assertThat(WebDynproResponseUnwrapper.extractSecureIdFromAny(xml))
+                .contains("XML-CSRF-1");
+    }
+
+    @Test
+    void extractSecureIdFromAnyHandlesNullAndBlank() {
+        assertThat(WebDynproResponseUnwrapper.extractSecureIdFromAny(null)).isEmpty();
+        assertThat(WebDynproResponseUnwrapper.extractSecureIdFromAny("")).isEmpty();
+        assertThat(WebDynproResponseUnwrapper.extractSecureIdFromAny("   ")).isEmpty();
+    }
+
+    @Test
     void unwrapperHelpersComposeForRoundTrip() {
         String html = "<form><input name=\"sap-wd-secure-id\" value=\"FRESH-CSRF-XYZ\"/></form>";
         String envelope = "<updates><full-update><content-update><![CDATA[" + html

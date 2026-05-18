@@ -1,4 +1,4 @@
-import { fetchJson } from "./client";
+import { fetchJson, getApiBaseUrl } from "./client";
 
 export interface AuthMe {
   studentId: string;
@@ -48,9 +48,5 @@ export async function callLogout(): Promise<void> {
  * frontend never has to know the SmartID URL or compose query params.
  */
 export function getSsoInitUrl(): string {
-  const base = process.env.NEXT_PUBLIC_SSUAI_API_BASE;
-  if (!base) {
-    throw new Error("NEXT_PUBLIC_SSUAI_API_BASE is not set");
-  }
-  return `${base.replace(/\/$/, "")}/api/auth/saint/sso-init`;
+  return `${getApiBaseUrl()}/api/auth/saint/sso-init`;
 }

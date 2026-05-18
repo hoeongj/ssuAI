@@ -13,13 +13,17 @@ fullnameOverride: ""
 env:
   springProfilesActive: prod
   frontendOrigin: https://ssuai.vercel.app
-  # Public HTTPS origin of THIS backend. SmartID 302s back to
+  # Public HTTPS origin that SmartID can call back to. In prod this is the
+  # Vercel frontend origin, whose Next.js rewrite proxies /api/* to the
+  # backend so refresh/session cookies land as first-party browser cookies.
+  #
+  # SmartID 302s back to
   # ${apiBaseUrl}/api/auth/saint/sso-callback with sToken/sIdno after the
   # user logs in. SmartID needs an absolute URL — relative paths get
   # interpreted against smartid.ssu.ac.kr itself and the callback never
   # reaches us. SaintSsoCallbackController fails fast on startup if this
   # env var is empty.
-  apiBaseUrl: https://ssumcp.duckdns.org
+  apiBaseUrl: https://ssuai.vercel.app
   javaOpts: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
   connectorMeal: real
   connectorDormMeal: real

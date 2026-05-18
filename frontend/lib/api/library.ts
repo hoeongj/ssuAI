@@ -2,13 +2,16 @@ import { fetchJson } from "./client";
 import type { LibraryBookSearchResponse, LibraryFloorCode, LibraryLoansResponse, LibrarySeatStatusResponse } from "./types";
 
 export function getLibrarySeatStatus(floor: LibraryFloorCode) {
-  return fetchJson<LibrarySeatStatusResponse>(`/api/library/seats?floor=${floor}`);
+  return fetchJson<LibrarySeatStatusResponse>(`/api/library/seats?floor=${floor}`, {
+    credentials: "include",
+  });
 }
 
 export function captureLibrarySession(token: string) {
   return fetchJson<null>("/api/library/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ token }),
   });
 }

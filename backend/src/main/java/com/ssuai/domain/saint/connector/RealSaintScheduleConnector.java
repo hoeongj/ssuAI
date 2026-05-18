@@ -43,12 +43,12 @@ import com.ssuai.global.exception.SaintSessionExpiredException;
  *
  * <ol>
  *   <li>{@code GET ZCMW2102} with the portal cookies attached. The
- *       response is the rendered HTML for the currently selected term
- *       and contains a fresh {@code sap-wd-secure-id} hidden input
- *       (the CSRF token the next POST must echo). The displayed
- *       {@code (학년도, 학기)} pair is parsed from the page's dropdowns
- *       — never derived from the wall clock — so the (year, term)
- *       label we emit matches what u-SAINT actually shows.</li>
+ *       Chrome-like client receives a SAP WebDynpro JavaScript bootstrap
+ *       containing the initial {@code sap-wd-secure-id}. The connector
+ *       sends {@code Form_Request} to obtain the rendered HTML for the
+ *       currently selected term. The displayed {@code (학년도, 학기)} pair
+ *       is parsed from the page's dropdowns — never derived from the wall
+ *       clock — so the label we emit matches what u-SAINT actually shows.</li>
  *   <li>For each prior term we still want, {@code POST ZCMW2102} with
  *       a {@code SAPEVENTQUEUE} that simulates pressing the
  *       "이전학기" button ({@code WDA7}). The response is a WebDynpro
@@ -107,11 +107,34 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
         int enrollmentYear = SaintScheduleHelpers.parseEnrollmentYear(studentId);
 
         HttpResponse<String> firstResponse = httpGet(cookies.rawCookieHeader());
-        String currentHtml = firstResponse.body();
-        guardAuthOrThrow(currentHtml, studentId);
+        String bootstrapHtml = firstResponse.body();
 
         String mergedCookieHeader = mergeSetCookies(cookies.rawCookieHeader(),
                 firstResponse.headers().allValues("Set-Cookie"));
+
+        // Chrome UA causes SAP WDA to return a JS bootstrap page on first GET.
+        // We need a Form_Request POST to trigger the full server-side render.
+        Optional<String> bootstrapSecureId = WebDynproResponseUnwrapper.extractSecureId(bootstrapHtml);
+        if (bootstrapSecureId.isEmpty()) {
+            String snippet = bootstrapHtml == null ? "(null)"
+                    : bootstrapHtml.substring(0, Math.min(300, bootstrapHtml.length())).replaceAll("\\s+", " ");
+            log.info("saint schedule bootstrap no secure-id: studentFp={} snippet='{}'",
+                    SaintSessionStore.fingerprint(studentId), snippet);
+            throw new SaintSessionExpiredException("ecc did not provide sap-wd-secure-id on first GET");
+        }
+
+        String initXml = httpPostInitialLoad(mergedCookieHeader, bootstrapSecureId.get(), "ZCMW2102",
+                properties.getTimetableUrl());
+        String currentHtml;
+        try {
+            currentHtml = WebDynproResponseUnwrapper.extractHtml(initXml);
+        } catch (IllegalArgumentException ex) {
+            log.info("saint schedule init POST non-wrapper: studentFp={}",
+                    SaintSessionStore.fingerprint(studentId));
+            throw new SaintSessionExpiredException("ecc init POST did not return expected XML wrapper");
+        }
+        guardAuthOrThrow(currentHtml, studentId);
+
         Optional<String> secureId = WebDynproResponseUnwrapper.extractSecureId(currentHtml);
 
         int displayedYear = SaintScheduleParser.parseDisplayedYear(currentHtml);
@@ -203,6 +226,28 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
                 .build();
         HttpResponse<String> response = send(request);
         return response.body();
+    }
+
+    private String httpPostInitialLoad(String cookieHeader, String secureId, String appName, String url) {
+        String queue = WebDynproSapEventEncoder.encodeInitialLoad();
+        String body = formEncoded(Map.of(
+                "sap-charset", "utf-8",
+                "sap-wd-secure-id", secureId,
+                "fesrAppName", appName,
+                "fesrUseBeacon", "true",
+                "SAPEVENTQUEUE", queue));
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Cookie", cookieHeader)
+                .header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+                .header("Accept", "application/xml,text/html")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("X-XHR-Logon", "accept")
+                .header("User-Agent", BROWSER_UA)
+                .timeout(properties.getTimeout())
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+        return send(request).body();
     }
 
     private HttpResponse<String> send(HttpRequest request) {

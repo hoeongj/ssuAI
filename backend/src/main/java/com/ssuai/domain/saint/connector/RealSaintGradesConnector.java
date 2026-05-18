@@ -40,11 +40,12 @@ import com.ssuai.global.exception.SaintSessionExpiredException;
  * <p>Two-step protocol (Task 16 spec §3.5.1 + §3.5.2):
  *
  * <ol>
- *   <li>{@code GET ZCMB3W0017} — the response is already a WebDynpro
- *       {@code <updates><full-update><content-update>[CDATA HTML]} envelope.
- *       Parser pulls the 학기별 GPA history table + 학적부/증명 summary
- *       blocks plus the current-default-term detail rows (often empty
- *       for a P/F-only current term).
+ *   <li>{@code GET ZCMB3W0017} — the Chrome-like client receives a SAP
+ *       WebDynpro JavaScript bootstrap. The connector extracts the initial
+ *       {@code sap-wd-secure-id}, sends {@code Form_Request}, then unwraps
+ *       the returned {@code <updates><full-update><content-update>[CDATA HTML]}
+ *       envelope. Parser pulls the 학기별 GPA history table + 학적부/증명
+ *       summary blocks plus the current-default-term detail rows.
  *   <li>For each prior term we still want, {@code POST ZCMB3W0017} with
  *       a {@code SAPEVENTQUEUE} that simulates pressing 이전학기
  *       ({@code WD01F0}). Each response carries a re-rendered page with
@@ -89,11 +90,34 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
     @Override
     public GradesResponse fetchGrades(String studentId, PortalCookies cookies) {
         HttpResponse<String> firstResponse = httpGet(cookies.rawCookieHeader());
-        String firstHtml = unwrapOrLogonGate(firstResponse.body(), studentId);
-        guardAuthOrThrow(firstHtml, studentId);
+        String rawFirstResponse = firstResponse.body();
 
         String mergedCookieHeader = mergeSetCookies(cookies.rawCookieHeader(),
                 firstResponse.headers().allValues("Set-Cookie"));
+
+        // Chrome UA causes SAP WDA to return JS bootstrap on first GET.
+        // Extract secure-id from the raw response (may be XML or plain HTML).
+        Optional<String> bootstrapSecureId = WebDynproResponseUnwrapper.extractSecureIdFromAny(rawFirstResponse);
+        if (bootstrapSecureId.isEmpty()) {
+            String snippet = rawFirstResponse == null ? "(null)"
+                    : rawFirstResponse.substring(0, Math.min(300, rawFirstResponse.length())).replaceAll("\\s+", " ");
+            log.info("saint grades bootstrap no secure-id: studentFp={} snippet='{}'",
+                    SaintSessionStore.fingerprint(studentId), snippet);
+            throw new SaintSessionExpiredException("ecc did not provide sap-wd-secure-id on first GET");
+        }
+
+        String initXml = httpPostInitialLoad(mergedCookieHeader, bootstrapSecureId.get(), "ZCMB3W0017",
+                properties.getGradesUrl());
+        String firstHtml;
+        try {
+            firstHtml = WebDynproResponseUnwrapper.extractHtml(initXml);
+        } catch (IllegalArgumentException ex) {
+            log.info("saint grades init POST non-wrapper: studentFp={}",
+                    SaintSessionStore.fingerprint(studentId));
+            throw new SaintSessionExpiredException("ecc init POST did not return expected XML wrapper");
+        }
+        guardAuthOrThrow(firstHtml, studentId);
+
         Optional<String> secureId = WebDynproResponseUnwrapper.extractSecureId(firstHtml);
 
         List<TermGpa> history = GradesParser.parseTermHistory(firstHtml);
@@ -148,6 +172,28 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
                 .GET()
                 .build();
         return send(request);
+    }
+
+    private String httpPostInitialLoad(String cookieHeader, String secureId, String appName, String url) {
+        String queue = WebDynproSapEventEncoder.encodeInitialLoad();
+        String body = formEncoded(Map.of(
+                "sap-charset", "utf-8",
+                "sap-wd-secure-id", secureId,
+                "fesrAppName", appName,
+                "fesrUseBeacon", "true",
+                "SAPEVENTQUEUE", queue));
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Cookie", cookieHeader)
+                .header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+                .header("Accept", "application/xml,text/html")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("X-XHR-Logon", "accept")
+                .header("User-Agent", BROWSER_UA)
+                .timeout(properties.getTimeout())
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+        return send(request).body();
     }
 
     private String httpPostButtonPress(String cookieHeader, String secureId, String buttonId) {

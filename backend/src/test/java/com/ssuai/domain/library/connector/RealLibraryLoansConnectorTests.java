@@ -32,7 +32,7 @@ class RealLibraryLoansConnectorTests {
 
     private static final String TOKEN = "stub-pyxis-auth-token";
     private static final String BASE_URL = "https://oasis.test.local";
-    private static final String LOANS_URL = BASE_URL + "/pyxis-api/1/charges?offset=0&max=20";
+    private static final String LOANS_URL = BASE_URL + "/pyxis-api/1/api/charges?offset=0&max=20";
 
     private MockRestServiceServer server;
     private RealLibraryLoansConnector connector;

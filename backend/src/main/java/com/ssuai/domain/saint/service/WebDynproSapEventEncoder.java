@@ -43,6 +43,27 @@ public final class WebDynproSapEventEncoder {
     }
 
     /**
+     * The initial Form_Request a SAP WDA client sends after the JavaScript
+     * bootstrap loads. Triggers a full-page render (the same one the server
+     * would have sent if auth were done server-side). Without this POST the
+     * server only returns the JS bootstrap and never the application HTML.
+     */
+    public static String encodeInitialLoad() {
+        SapEvent formRequest = SapEvent.builder("Form_Request")
+                .meta(meta -> {
+                    meta.put("Id", "sap.client.SsrClient.form");
+                    meta.put("Async", "false");
+                    meta.put("FocusInfo", "");
+                    meta.put("Hash", "");
+                    meta.put("DomChanged", "false");
+                    meta.put("IsDirty", "false");
+                })
+                .meta(meta -> meta.put("ResponseData", "delta"))
+                .build();
+        return encode(List.of(formRequest));
+    }
+
+    /**
      * Convenience for the only gesture Task 16 PR 16b emits: press a
      * button identified by its WebDynpro {@code Id} (e.g. {@code WDA7}
      * for "previous year"). Mirrors the captured cURL exactly:

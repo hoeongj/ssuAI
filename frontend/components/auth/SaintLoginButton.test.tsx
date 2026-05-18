@@ -27,25 +27,21 @@ afterEach(() => {
 });
 
 describe("SaintLoginButton", () => {
-  it("navigates to the backend sso-init endpoint on click", () => {
+  it("navigates to the same-origin sso-init endpoint on click", () => {
     render(<SaintLoginButton />);
 
     fireEvent.click(screen.getByRole("button", { name: /유세인트로 로그인/ }));
 
-    expect(window.location.href).toBe(
-      "http://localhost:8080/api/auth/saint/sso-init",
-    );
+    expect(window.location.href).toBe("/api/auth/saint/sso-init");
   });
 
-  it("trims a trailing slash off NEXT_PUBLIC_SSUAI_API_BASE before composing the URL", () => {
+  it("keeps browser navigation same-origin even when an API base env exists", () => {
     process.env.NEXT_PUBLIC_SSUAI_API_BASE = "https://api.ssuai.test/";
 
     render(<SaintLoginButton />);
     fireEvent.click(screen.getByRole("button", { name: /유세인트로 로그인/ }));
 
-    expect(window.location.href).toBe(
-      "https://api.ssuai.test/api/auth/saint/sso-init",
-    );
+    expect(window.location.href).toBe("/api/auth/saint/sso-init");
   });
 
   it("renders a custom label when supplied", () => {
