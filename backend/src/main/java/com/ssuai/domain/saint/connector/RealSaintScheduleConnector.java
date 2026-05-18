@@ -264,7 +264,9 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
                 log.warn("saint schedule connector 5xx: status={} body='{}'", status, snippet);
                 throw new ConnectorUnavailableException();
             }
-            log.warn("saint schedule connector unexpected status={}", status);
+            String body4xx = response.body() == null ? "(null)"
+                    : response.body().substring(0, Math.min(500, response.body().length())).replaceAll("\\s+", " ");
+            log.warn("saint schedule connector unexpected status={} body='{}'", status, body4xx);
             throw new ConnectorParseException();
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new ConnectorTimeoutException(exception);
