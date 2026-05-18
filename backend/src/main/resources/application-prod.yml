@@ -53,6 +53,16 @@ ssuai:
 # `-XX:+UseG1GC -XX:MaxRAMPercentage=75.0`) so it can be tweaked
 # without a rebuild. The Dockerfile applies JAVA_OPTS via ENTRYPOINT.
 
+server:
+  servlet:
+    session:
+      cookie:
+        # Vercel frontend + Oracle backend = cross-site; JSESSIONID must be
+        # SameSite=None so the browser sends it on fetch() with credentials:include.
+        # Same reasoning as refresh-cookie above.
+        same-site: none
+        secure: true
+
 springdoc:
   swagger-ui:
     enabled: false
