@@ -6,11 +6,6 @@ const BACKEND_BASE = (
   "http://localhost:8080"
 ).replace(/\/$/, "");
 
-// Intercept the SmartID SSO callback before the /api/* rewrite runs.
-// Vercel strips Set-Cookie from rewrite proxy responses that come from a
-// different domain, so the backend can never set the refresh cookie through
-// a rewrite. Middleware runs first and re-issues the cookie itself, which
-// makes it land on ssuai.vercel.app rather than ssumcp.duckdns.org.
 export async function proxy(request: NextRequest) {
   const { searchParams } = request.nextUrl;
 
@@ -24,11 +19,32 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/return?error=unknown", request.url));
   }
 
-  const setCookie = backendRes.headers.get("set-cookie");
+  const setCookieHeader = backendRes.headers.get("set-cookie");
 
-  if (backendRes.status === 200 && setCookie) {
+  if (backendRes.status === 200 && setCookieHeader) {
+    // Parse Set-Cookie: <name>=<value>; Path=...; Max-Age=...; ...
+    // JWT values contain "=" so we split only on the first "=".
+    const parts = setCookieHeader.split(";");
+    const firstEq = parts[0].indexOf("=");
+    const cookieName = parts[0].substring(0, firstEq).trim();
+    const cookieValue = parts[0].substring(firstEq + 1).trim();
+
+    const maxAgePart = parts.find((p) =>
+      p.trim().toLowerCase().startsWith("max-age="),
+    );
+    const maxAge = maxAgePart ? parseInt(maxAgePart.split("=")[1]!, 10) : 1209600;
+
     const response = NextResponse.redirect(new URL("/auth/return?ok=1", request.url));
-    response.headers.set("Set-Cookie", setCookie);
+    // Use cookies.set() — Next.js proxy strips manually-set Set-Cookie headers.
+    response.cookies.set({
+      name: cookieName,
+      value: cookieValue,
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/api/auth",
+      maxAge,
+    });
     return response;
   }
 
