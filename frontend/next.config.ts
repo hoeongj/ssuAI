@@ -8,12 +8,18 @@ const apiProxyTarget = rawApiProxyTarget.replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiProxyTarget}/api/:path*`,
-      },
-    ];
+    return {
+      // afterFiles: Next.js checks its own API routes first, then falls
+      // through to these rewrites. This lets app/api/auth/saint/sso-callback
+      // handle the SmartID callback directly (so it can set the refresh cookie
+      // on the Vercel domain) while all other /api/* calls are proxied.
+      afterFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${apiProxyTarget}/api/:path*`,
+        },
+      ],
+    };
   },
 };
 
