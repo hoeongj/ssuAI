@@ -50,3 +50,7 @@ export async function callLogout(): Promise<void> {
 export function getSsoInitUrl(): string {
   return `${getApiBaseUrl()}/api/auth/saint/sso-init`;
 }
+
+export function getLmsSsoInitUrl(): string {
+  return `${getApiBaseUrl()}/api/auth/lms/sso-init`;
+}

@@ -125,9 +125,7 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
         String bootstrapHtml = initGet.html();
         String mergedCookieHeader = initGet.cookieHeader();
 
-        // Chrome UA causes SAP WDA to return a JS bootstrap page on first GET.
-        // We need a Form_Request POST to trigger the full server-side render.
-        Optional<String> bootstrapSecureId = WebDynproResponseUnwrapper.extractSecureId(bootstrapHtml);
+        Optional<String> bootstrapSecureId = WebDynproResponseUnwrapper.extractSecureIdFromAny(bootstrapHtml);
         if (bootstrapSecureId.isEmpty()) {
             String snippet = bootstrapHtml == null ? "(null)"
                     : bootstrapHtml.substring(0, Math.min(300, bootstrapHtml.length())).replaceAll("\\s+", " ");
@@ -136,15 +134,17 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
             throw new SaintSessionExpiredException("ecc did not provide sap-wd-secure-id on first GET");
         }
 
-        String initXml = httpPostInitialLoad(mergedCookieHeader, bootstrapSecureId.get(), "ZCMW2102",
-                properties.getTimetableUrl());
-        String currentHtml;
-        try {
-            currentHtml = WebDynproResponseUnwrapper.extractHtml(initXml);
-        } catch (IllegalArgumentException ex) {
-            log.info("saint schedule init POST non-wrapper: studentFp={}",
-                    SaintSessionStore.fingerprint(studentId));
-            throw new SaintSessionExpiredException("ecc init POST did not return expected XML wrapper");
+        String currentHtml = firstRenderableHtml(bootstrapHtml);
+        if (!containsTimetable(currentHtml)) {
+            String initXml = httpPostInitialLoad(mergedCookieHeader, bootstrapSecureId.get(), "ZCMW2102",
+                    properties.getTimetableUrl());
+            try {
+                currentHtml = WebDynproResponseUnwrapper.extractHtml(initXml);
+            } catch (IllegalArgumentException ex) {
+                log.info("saint schedule init POST non-wrapper: studentFp={}",
+                        SaintSessionStore.fingerprint(studentId));
+                throw new SaintSessionExpiredException("ecc init POST did not return expected XML wrapper");
+            }
         }
         guardAuthOrThrow(currentHtml, studentId);
 
@@ -171,8 +171,15 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
                         SaintSessionStore.fingerprint(studentId), displayedYear, displayedTerm);
                 break;
             }
-            String xmlEnvelope = httpPostButtonPress(mergedCookieHeader, secureId.get(),
-                    PREV_TERM_BUTTON_ID);
+            String xmlEnvelope;
+            try {
+                xmlEnvelope = httpPostButtonPress(mergedCookieHeader, secureId.get(),
+                        PREV_TERM_BUTTON_ID);
+            } catch (SaintSessionExpiredException ex) {
+                log.info("saint schedule iterate halted: studentFp={} reason=session-expired year={} term={}",
+                        SaintSessionStore.fingerprint(studentId), displayedYear, displayedTerm);
+                break;
+            }
             String prevHtml = WebDynproResponseUnwrapper.extractHtml(xmlEnvelope);
             secureId = WebDynproResponseUnwrapper.extractSecureId(prevHtml);
 
@@ -313,6 +320,10 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
             if (status / 100 == 2) {
                 return response;
             }
+            if (status == 401 || status == 403) {
+                log.info("saint schedule connector auth rejected: status={}", status);
+                throw new SaintSessionExpiredException("ecc rejected WebDynpro request with " + status);
+            }
             if (status / 100 == 5) {
                 String snippet = response.body() == null ? "(null)"
                         : response.body().substring(0, Math.min(300, response.body().length()));
@@ -338,13 +349,26 @@ public class RealSaintScheduleConnector implements SaintScheduleConnector {
         if (html == null || html.isBlank()) {
             throw new SaintSessionExpiredException("ecc returned empty body");
         }
-        if (Jsoup.parse(html).selectFirst(TIMETABLE_TABLE_SELECTOR) == null) {
+        if (!containsTimetable(html)) {
             String snippet = html.substring(0, Math.min(500, html.length())).replaceAll("\\s+", " ");
             log.info("saint schedule auth gate tripped: studentFp={} htmlSnippet='{}'",
                     SaintSessionStore.fingerprint(studentId), snippet);
             throw new SaintSessionExpiredException(
                     "ecc did not return the timetable container (likely logon redirect)");
         }
+    }
+
+    private static String firstRenderableHtml(String responseBody) {
+        try {
+            return WebDynproResponseUnwrapper.extractHtml(responseBody);
+        } catch (IllegalArgumentException ignored) {
+            return responseBody;
+        }
+    }
+
+    private static boolean containsTimetable(String html) {
+        return html != null && !html.isBlank()
+                && Jsoup.parse(html).selectFirst(TIMETABLE_TABLE_SELECTOR) != null;
     }
 
     static String mergeSetCookies(String existing, List<String> setCookieHeaders) {

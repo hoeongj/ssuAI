@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLmsAssignments } from "@/hooks/useLmsAssignments";
 import { useSaintAuth } from "@/hooks/useSaintAuth";
-import { getSsoInitUrl } from "@/lib/api/auth";
+import { getLmsSsoInitUrl } from "@/lib/api/auth";
 
 function AssignmentsSkeleton() {
   return (
@@ -57,7 +57,7 @@ export function AssignmentsCard() {
             <p className="text-sm text-muted-foreground">
               LMS 과제는 로그인이 필요합니다.
             </p>
-            <Button size="sm" onClick={() => (window.location.href = getSsoInitUrl())}>
+            <Button size="sm" onClick={() => (window.location.href = getLmsSsoInitUrl())}>
               <LogIn className="h-4 w-4" aria-hidden="true" />
               SmartID 로그인
             </Button>
@@ -72,7 +72,7 @@ export function AssignmentsCard() {
             <p className="text-sm text-muted-foreground">
               LMS 세션이 만료됐습니다. 다시 로그인하면 과제 현황을 볼 수 있습니다.
             </p>
-            <Button size="sm" onClick={() => (window.location.href = getSsoInitUrl())}>
+            <Button size="sm" onClick={() => (window.location.href = getLmsSsoInitUrl())}>
               <LogIn className="h-4 w-4" aria-hidden="true" />
               다시 로그인
             </Button>

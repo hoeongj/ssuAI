@@ -80,6 +80,22 @@ class RealSaintScheduleConnectorTests {
     }
 
     @Test
+    void firstGetWithRenderedTimetableDoesNotSendInitialPost() throws Exception {
+        server.enqueue(htmlOk(withSecureId(loadFixture(), "CSRF-GET")));
+
+        ScheduleResponse response = connector.fetchSchedule("20261234",
+                new PortalCookies("MYSAPSSO2=abc"));
+
+        assertThat(response.terms()).hasSize(1);
+        assertThat(response.terms().get(0).entries()).hasSize(7);
+        assertThat(server.getRequestCount()).isEqualTo(1);
+
+        RecordedRequest getReq = server.takeRequest();
+        assertThat(getReq.getMethod()).isEqualTo("GET");
+        assertThat(getReq.getHeader("Cookie")).contains("MYSAPSSO2=abc");
+    }
+
+    @Test
     void multiTermIteratePostsPrevButtonPerStepAndLabelsEachHopFromTheResponse() throws Exception {
         // GET → bootstrap (CSRF-BOOT) → initial POST returns 2026/1학기 (CSRF-0)
         // → 4 PREV POSTs walk back through (겨울→2학기→여름→1학기). Student

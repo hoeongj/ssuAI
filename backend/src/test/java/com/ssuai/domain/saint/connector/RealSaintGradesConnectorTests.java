@@ -95,6 +95,32 @@ class RealSaintGradesConnectorTests {
     }
 
     @Test
+    void firstGetWithRenderedGradesDoesNotSendInitialPost() throws Exception {
+        String firstFixture = loadFixture("grades-success.html");
+        String prevFixture = loadFixture("grades-prev-success.html");
+
+        server.enqueue(htmlOk(firstFixture));
+        for (int i = 0; i < 5; i++) {
+            server.enqueue(xmlOk(prevFixture));
+        }
+
+        GradesResponse response = connector.fetchGrades("20221528",
+                new PortalCookies("MYSAPSSO2=abc"));
+
+        assertThat(response.history()).hasSize(6);
+        assertThat(response.academicRecord().gpa()).isEqualTo(3.50d);
+        // GET rendered the history and current page, so only prev POSTs are sent.
+        assertThat(server.getRequestCount()).isEqualTo(6);
+
+        RecordedRequest first = server.takeRequest();
+        assertThat(first.getMethod()).isEqualTo("GET");
+        RecordedRequest firstPrevPost = server.takeRequest();
+        assertThat(firstPrevPost.getMethod()).isEqualTo("POST");
+        assertThat(firstPrevPost.getBody().readUtf8())
+                .contains("sap-wd-secure-id=92AC1288589D3E4A398E724EED71D17A");
+    }
+
+    @Test
     void emptyHistoryShortCircuitsBeforeAnyPrevPost() throws Exception {
         // A response with NO 학기별 표 rows still has the tbody anchor
         // (the auth gate stays clear) but iterate has nothing to walk.
@@ -136,6 +162,13 @@ class RealSaintGradesConnectorTests {
                 .setBody("<html><body><form id=\"sap.client.SsrClient.form\">"
                         + "<input type=\"hidden\" name=\"sap-wd-secure-id\" value=\"" + secureId + "\"/>"
                         + "</form></body></html>");
+    }
+
+    private static MockResponse htmlOk(String body) {
+        return new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "text/html; charset=utf-8")
+                .setBody(body);
     }
 
     private static MockResponse xmlOk(String body) {

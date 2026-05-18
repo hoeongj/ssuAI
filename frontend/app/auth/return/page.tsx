@@ -10,6 +10,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: "유세인트 로그인에 실패했어요. 다시 시도해 주세요.",
   portal_unavailable:
     "유세인트 포털이 응답하지 않아요. 잠시 후 다시 시도해 주세요.",
+  lms_auth_failed: "LMS 로그인에 실패했어요. 다시 시도해 주세요.",
+  lms_unknown: "LMS 로그인 처리 중 알 수 없는 오류가 발생했어요. 다시 시도해 주세요.",
   unknown: "알 수 없는 오류가 발생했어요. 다시 시도해 주세요.",
 };
 
@@ -18,12 +20,13 @@ function AuthReturnContent() {
   const router = useRouter();
   const { refresh } = useSaintAuth();
   const ok = params.get("ok") === "1";
+  const lmsOk = params.get("lms_ok") === "1";
   const errorCode = params.get("error");
   const [refreshSettled, setRefreshSettled] = useState(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
 
   useEffect(() => {
-    if (!ok) return;
+    if (!ok && !lmsOk) return;
     let cancelled = false;
     refresh().then((success) => {
       if (cancelled) return;
@@ -37,11 +40,11 @@ function AuthReturnContent() {
     return () => {
       cancelled = true;
     };
-  }, [ok, refresh, router]);
+  }, [ok, lmsOk, refresh, router]);
 
   // Pending only on the success path while the refresh round-trip is in
   // flight. The error path renders immediately; no effect involved.
-  const pending = ok && !refreshSettled;
+  const pending = (ok || lmsOk) && !refreshSettled;
 
   if (pending) {
     return <p className="text-sm text-muted-foreground">로그인 처리 중…</p>;
@@ -62,7 +65,7 @@ function AuthReturnContent() {
     );
   }
 
-  if (ok) {
+  if (ok || lmsOk) {
     // success path — already redirected via router.replace("/"); component is
     // about to unmount, render a quiet placeholder.
     return null;

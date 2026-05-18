@@ -108,8 +108,6 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
         String rawFirstResponse = initGet.html();
         String mergedCookieHeader = initGet.cookieHeader();
 
-        // Chrome UA causes SAP WDA to return JS bootstrap on first GET.
-        // Extract secure-id from the raw response (may be XML or plain HTML).
         Optional<String> bootstrapSecureId = WebDynproResponseUnwrapper.extractSecureIdFromAny(rawFirstResponse);
         if (bootstrapSecureId.isEmpty()) {
             String snippet = rawFirstResponse == null ? "(null)"
@@ -119,15 +117,17 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
             throw new SaintSessionExpiredException("ecc did not provide sap-wd-secure-id on first GET");
         }
 
-        String initXml = httpPostInitialLoad(mergedCookieHeader, bootstrapSecureId.get(), "ZCMB3W0017",
-                properties.getGradesUrl());
-        String firstHtml;
-        try {
-            firstHtml = WebDynproResponseUnwrapper.extractHtml(initXml);
-        } catch (IllegalArgumentException ex) {
-            log.info("saint grades init POST non-wrapper: studentFp={}",
-                    SaintSessionStore.fingerprint(studentId));
-            throw new SaintSessionExpiredException("ecc init POST did not return expected XML wrapper");
+        String firstHtml = firstRenderableHtml(rawFirstResponse);
+        if (!containsGradesTables(firstHtml)) {
+            String initXml = httpPostInitialLoad(mergedCookieHeader, bootstrapSecureId.get(), "ZCMB3W0017",
+                    properties.getGradesUrl());
+            try {
+                firstHtml = WebDynproResponseUnwrapper.extractHtml(initXml);
+            } catch (IllegalArgumentException ex) {
+                log.info("saint grades init POST non-wrapper: studentFp={}",
+                        SaintSessionStore.fingerprint(studentId));
+                throw new SaintSessionExpiredException("ecc init POST did not return expected XML wrapper");
+            }
         }
         guardAuthOrThrow(firstHtml, studentId);
 
@@ -152,8 +152,15 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
                         SaintSessionStore.fingerprint(studentId), i);
                 break;
             }
-            String xmlEnvelope = httpPostButtonPress(mergedCookieHeader, secureId.get(),
-                    PREV_TERM_BUTTON_ID);
+            String xmlEnvelope;
+            try {
+                xmlEnvelope = httpPostButtonPress(mergedCookieHeader, secureId.get(),
+                        PREV_TERM_BUTTON_ID);
+            } catch (SaintSessionExpiredException exception) {
+                log.info("saint grades iterate halted: studentFp={} reason=session-expired index={}",
+                        SaintSessionStore.fingerprint(studentId), i);
+                break;
+            }
             String prevHtml;
             try {
                 prevHtml = WebDynproResponseUnwrapper.extractHtml(xmlEnvelope);
@@ -281,6 +288,10 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
             if (status / 100 == 2) {
                 return response;
             }
+            if (status == 401 || status == 403) {
+                log.info("saint grades connector auth rejected: status={}", status);
+                throw new SaintSessionExpiredException("ecc rejected WebDynpro request with " + status);
+            }
             if (status / 100 == 5) {
                 String snippet = response.body() == null ? "(null)"
                         : response.body().substring(0, Math.min(300, response.body().length()));
@@ -302,28 +313,30 @@ public class RealSaintGradesConnector implements SaintGradesConnector {
         }
     }
 
-    private String unwrapOrLogonGate(String wrappedXml, String studentId) {
-        try {
-            return WebDynproResponseUnwrapper.extractHtml(wrappedXml);
-        } catch (IllegalArgumentException exception) {
-            log.info("saint grades unwrap failed: studentFp={} reason=non-wrapper-response",
-                    SaintSessionStore.fingerprint(studentId));
-            throw new SaintSessionExpiredException(
-                    "ecc response is not in the expected WebDynpro wrapper shape");
-        }
-    }
-
     private void guardAuthOrThrow(String html, String studentId) {
         if (html == null || html.isBlank()) {
             throw new SaintSessionExpiredException("ecc returned empty body");
         }
-        if (org.jsoup.Jsoup.parse(html).selectFirst("tbody[id$=-contentTBody]") == null) {
+        if (!containsGradesTables(html)) {
             String snippet = html.substring(0, Math.min(500, html.length())).replaceAll("\\s+", " ");
             log.info("saint grades auth gate tripped: studentFp={} htmlSnippet='{}'",
                     SaintSessionStore.fingerprint(studentId), snippet);
             throw new SaintSessionExpiredException(
                     "ecc did not return the grades tables (likely logon redirect)");
         }
+    }
+
+    private static String firstRenderableHtml(String responseBody) {
+        try {
+            return WebDynproResponseUnwrapper.extractHtml(responseBody);
+        } catch (IllegalArgumentException ignored) {
+            return responseBody;
+        }
+    }
+
+    private static boolean containsGradesTables(String html) {
+        return html != null && !html.isBlank()
+                && org.jsoup.Jsoup.parse(html).selectFirst("tbody[id$=-contentTBody]") != null;
     }
 
     static String mergeSetCookies(String existing, List<String> setCookieHeaders) {
