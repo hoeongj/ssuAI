@@ -1,53 +1,55 @@
 package com.ssuai.domain.mcp.tool;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
+import com.ssuai.domain.auth.mcp.McpProviderType;
+import com.ssuai.domain.auth.mcp.dto.McpPrivateToolResponse;
 import com.ssuai.domain.saint.dto.ScheduleResponse;
-import com.ssuai.domain.saint.mcp.SaintToolContext;
 import com.ssuai.domain.saint.service.SaintScheduleService;
 
 /**
- * MCP tool that returns the authenticated student's u-SAINT timetable
- * across every enrolled year (Task 16 PR 16b + MCP-tools follow-up).
+ * MCP tool for the authenticated student's u-SAINT timetable (Task 18 Slice C).
  *
- * <p>Unlike the public tools ({@code get_today_meal}, {@code get_library_seat_status}…),
- * this tool takes <strong>no caller-supplied student id</strong>. Allowing a
- * client-supplied id would let an external MCP client (Claude Desktop, an
- * arbitrary MCP-aware agent) spoof any student. Instead the chat path
- * binds the authenticated student id to {@link SaintToolContext} before
- * dispatching the tool callback; this method reads it back. An external
- * MCP client that calls this tool without going through chat will see
- * the context empty and receive an explicit failure.
+ * <p>External MCP clients (Claude Desktop, Cursor) pass {@code mcp_session_id} to
+ * identify their auth session. If the SAINT provider is not yet linked, the tool
+ * returns AUTH_REQUIRED with a loginUrl; the client opens the URL in a browser and
+ * retries the call once authentication completes.
  *
- * <p>The chat path is also free to bypass MCP transport entirely and
- * call {@link SaintScheduleService} directly with the authenticated
- * student id — both routes funnel through the same service, and the
- * spec §6 #6 compact policy lives in {@code LlmChatService.compactAndCap}
- * regardless of which route runs.
+ * <p>The chatbot path (LlmChatService) calls SaintScheduleService directly and does
+ * not invoke this method.
  */
 @Component
 public class SaintScheduleMcpTool {
 
-    private final SaintScheduleService scheduleService;
+    private static final Logger log = LoggerFactory.getLogger(SaintScheduleMcpTool.class);
 
-    public SaintScheduleMcpTool(SaintScheduleService scheduleService) {
+    private final SaintScheduleService scheduleService;
+    private final McpAuthHelper authHelper;
+
+    public SaintScheduleMcpTool(SaintScheduleService scheduleService, McpAuthHelper authHelper) {
         this.scheduleService = scheduleService;
+        this.authHelper = authHelper;
     }
 
     @Tool(
             name = "get_my_schedule",
-            description = "로그인된 학생 본인의 u-SAINT 시간표를 입학년도부터 현재 학기까지 전부 가져옵니다. "
-                    + "응답에는 학기별 강의 목록 (요일·교시·과목명·강의실) 이 포함됩니다. "
-                    + "학번/이름 같은 인자를 받지 않습니다 — 인증된 chat 세션에서만 호출 가능합니다."
+            description = "Returns the authenticated student's u-SAINT timetable for all enrolled semesters. "
+                    + "Requires mcp_session_id with the SAINT provider linked via start_auth. "
+                    + "Returns AUTH_REQUIRED with a loginUrl if not authenticated — open loginUrl in a browser, then retry."
     )
-    public ScheduleResponse getMySchedule() {
-        String studentId = SaintToolContext.currentStudentId();
-        if (studentId == null || studentId.isBlank()) {
-            throw new IllegalStateException(
-                    "이 도구는 인증된 chat 세션에서만 호출 가능합니다. "
-                            + "외부 MCP 클라이언트는 본인 학번 인자를 전달할 수 없습니다.");
-        }
-        return scheduleService.fetchSchedule(studentId);
+    public McpPrivateToolResponse<ScheduleResponse> getMySchedule(String mcp_session_id) {
+        return authHelper.principalKey(mcp_session_id, McpProviderType.SAINT)
+                .map(studentId -> {
+                    log.debug("get_my_schedule: fetching schedule");
+                    ScheduleResponse data = scheduleService.fetchSchedule(studentId);
+                    return McpPrivateToolResponse.ok(mcp_session_id, data);
+                })
+                .orElseGet(() -> {
+                    log.debug("get_my_schedule: SAINT not linked, returning AUTH_REQUIRED");
+                    return authHelper.buildAuthRequired(mcp_session_id, McpProviderType.SAINT);
+                });
     }
 }

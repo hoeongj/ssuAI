@@ -7,36 +7,11 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLibraryAuth } from "@/contexts/LibraryAuthContext";
 import { loginLibrary } from "@/lib/api/library";
+import { encryptLibraryPassword } from "@/lib/crypto";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface LibraryLoginModalProps {
   onClose: () => void;
-}
-
-// oasis.ssu.ac.kr login JS에서 추출한 파라미터로 AES-CBC/PKCS7 암호화
-// PBKDF2(SHA-1, 5000 iter, 128-bit key) → AES/CBC with fixed salt & IV
-async function encryptPassword(raw: string): Promise<string> {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    enc.encode("M2M2YjcyMmU2OTZlNjU2YjJlNjM2OTcwNjU3MjNl"),
-    "PBKDF2",
-    false,
-    ["deriveKey"],
-  );
-  const aesKey = await crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt: enc.encode("kr.inek.encrypte"), iterations: 5000, hash: "SHA-1" },
-    keyMaterial,
-    { name: "AES-CBC", length: 128 },
-    false,
-    ["encrypt"],
-  );
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-CBC", iv: enc.encode("[kr:inek:solved]") },
-    aesKey,
-    enc.encode(raw),
-  );
-  return btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
 }
 
 export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
@@ -67,7 +42,7 @@ export function LibraryLoginModal({ onClose }: LibraryLoginModalProps) {
     setSubmitting(true);
     setError(null);
     try {
-      await loginLibrary(loginId.trim(), await encryptPassword(password));
+      await loginLibrary(loginId.trim(), await encryptLibraryPassword(password));
       setSuccess(true);
       setConnected(true);
       await queryClient.invalidateQueries({ queryKey: ["library", "loans"] });

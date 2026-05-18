@@ -544,7 +544,74 @@ and [`docs/security.md`](security.md) §6 for the action policy.
 
 ---
 
-## 15. Open questions — resolved
+## 15. MCP auth session (Task 18)
+
+### 흐름 개요
+
+외부 MCP client (Claude Desktop, Cursor) 가 private tool 을 호출하면 서버가 `AUTH_REQUIRED` 응답과 로그인 URL 을 반환한다. 사용자가 브라우저에서 로그인을 완료하면 서버가 provider session 을 저장하고 이후 tool call 이 데이터를 반환한다.
+
+```
+MCP client → get_my_schedule(mcp_session_id)
+               │
+               ▼
+         McpAuthHelper.principalKey()
+               │
+       ┌───────┴───────┐
+  session 있음       session 없음
+       │                  │
+  SaintScheduleService    McpAuthHelper.buildAuthRequired()
+  .fetchSchedule()        → AUTH_REQUIRED + loginUrl
+       │
+  McpPrivateToolResponse.ok(data)
+```
+
+### 패키지
+
+```
+domain.auth.mcp
+├── McpAuthSessionId      // opaque UUID handle; fingerprint() → SHA-256 prefix (logs only)
+├── McpAuthSession        // immutable record: id, createdAt, expiresAt, providers map
+├── McpProviderLink       // provider + principalKey + linkedAt
+├── McpAuthStateEntry     // one-time login state token: state, mcpSessionId, provider, expiresAt
+├── McpAuthSessionStore   // LRU+TTL in-memory store (LinkedHashMap). max 500 sessions, TTL 4h
+├── McpAuthStateStore     // one-time state store. max 1000 states, TTL 10min, replay-protected
+├── McpAuthService        // interface: find, getOrCreate, generateState, consumeState, linkProvider, unlinkProvider, invalidateSession
+├── McpAuthUrlFactory     // buildLoginUrl / buildCallbackUrl per provider
+├── McpSaintAuthController // GET /api/mcp/auth/saint/start → SmartID redirect
+│                          // GET /api/mcp/auth/saint/callback → SaintSsoService → linkProvider
+├── McpLmsAuthController  // GET /api/mcp/auth/lms/start|callback
+├── McpLibraryAuthController // GET /api/mcp/auth/library/start → frontend redirect
+│                           // POST /api/mcp/auth/library/callback → LibraryCredentialLoginService
+└── dto
+    ├── McpAuthStatusResponse, McpAuthStartResponse, McpAuthLogoutResponse, McpProviderStatusEntry
+    └── McpPrivateToolResponse<T>  // status: OK | AUTH_REQUIRED, data, loginUrl, expiresAt
+
+domain.mcp.tool
+├── McpAuthMcpTools  // @Tool get_auth_status, start_auth, logout_provider, logout_all
+├── McpAuthHelper    // principalKey() lookup + buildAuthRequired() factory (shared by private tools)
+├── SaintScheduleMcpTool   // get_my_schedule(mcp_session_id) → McpPrivateToolResponse<ScheduleResponse>
+├── SaintGradesMcpTool     // get_my_grades(mcp_session_id)
+├── LmsAssignmentsMcpTool  // get_my_assignments(mcp_session_id)
+└── LibraryLoansMcpTool    // get_my_library_loans(mcp_session_id)
+```
+
+### principalKey 매핑
+
+| Provider | principalKey | 용도 |
+| --- | --- | --- |
+| SAINT | studentId | SaintSessionStore 조회 키 |
+| LMS | studentId (= sIdno) | LmsSessionStore 조회 키 |
+| LIBRARY | 불투명 UUID | LibrarySessionStore 조회 키 (studentId 아님) |
+
+### 웹 챗봇과의 관계
+
+웹 챗봇 (`LlmChatService`) 은 private tool 을 MCP 경로로 호출하지 않는다. `get_my_schedule` 등은 `SaintScheduleService.fetchSchedule(studentId)` 를 직접 호출한다 (lines 526-534). MCP tool 메서드 시그니처 변경이 챗봇에 영향을 주지 않는 이유다.
+
+ThreadLocal (`SaintToolContext`, `LmsToolContext`, `LibraryToolContext`) 은 웹 챗봇 경로에만 남아 있다. MCP private tool 은 ThreadLocal 을 사용하지 않는다 (Task 18 Slice C 이후).
+
+---
+
+## 16. Open questions — resolved
 
 All week-1 open questions are now settled (kept here for the design log):
 

@@ -3,65 +3,108 @@
 ## 1. 개요
 ssuAI MCP server 는 숭실대학교 학생을 위한 캠퍼스 정보 조회 기능을 MCP(Model Context Protocol) tool 로 노출한다. Claude Desktop, Cursor, MCP inspector 같은 MCP client 는 이 서버에 붙어서 학식, 기숙사 식단, 캠퍼스 시설 정보를 대화 중에 조회할 수 있다.
 
+**Task 18 이후**: 외부 MCP client (Claude Desktop, Cursor 등) 도 `mcp_session_id` 기반 인증 세션을 통해 `get_my_schedule`, `get_my_grades`, `get_my_assignments`, `get_my_library_loans` 를 직접 호출할 수 있다. 인증이 없으면 `AUTH_REQUIRED` 응답과 로그인 URL 을 반환한다.
+
 MCP server 는 별도 프로세스가 아니라 기존 ssuAI Spring Boot backend 안에서 REST API 와 함께 실행된다. backend 를 띄우면 REST endpoint 와 MCP endpoint 가 같은 JVM 안에서 같이 살아난다.
 
-현재 transport 는 SSE(Server-Sent Events) / Streamable HTTP 계열이며 기본 endpoint 는 `http://localhost:8080/sse` 이다. 이 문서는 local 개발 환경에서 MCP server 를 띄우고 MCP inspector, Claude Desktop, Cursor 에 연결하는 절차만 다룬다.
+현재 transport 는 SSE(Server-Sent Events) / Streamable HTTP 계열이며 기본 endpoint 는 `http://localhost:8080/sse` 이다.
 
-## 2. 현재 노출 tool 10개
+## 2. 노출 tool 목록
 
-MCP server 는 read-only tool 10개를 제공한다. 응답 DTO 의 자세한 JSON shape 는 Java record 가 source of truth 이므로 도메인 타입명만 적는다.
+### 2a. 공개 tool (인증 불필요)
 
-### 공개 tool (인증 불필요)
-
-| tool name | 설명 | 인자 | 응답 DTO |
+| tool name | 설명 | 주요 인자 | 응답 DTO |
 | --- | --- | --- | --- |
-| `get_today_meal` | 오늘 숭실대학교 캠퍼스 식당 메뉴를 조회한다. `restaurant` 를 비우면 전체 식당, 지정하면 해당 식당만 반환한다. | `restaurant` (선택): 학생식당 / 숭실도담식당 / 스낵코너 / 푸드코트 / THE KITCHEN / FACULTY LOUNGE | `MealResponse` |
-| `get_meal_by_date` | 지정한 날짜의 숭실대학교 캠퍼스 식당 메뉴를 조회한다. `restaurant` 동작은 `get_today_meal` 과 동일. | `date`: `yyyy-MM-dd` (예: `2026-05-07`), `restaurant` (선택): 위와 동일 | `MealResponse` |
-| `get_dorm_weekly_meal` | 레지던스홀 기숙사 식당의 이번 주 주간 메뉴를 조회한다. | 없음 | `WeeklyMealResponse` |
-| `search_campus_facilities` | 식당, 카페, 편의점, 서점, 복사/출력 시설 등을 검색한다. `query` 가 비어 있으면 전체 시설을 반환한다. | `query`: 선택 문자열 | `CampusFacilityListResponse` |
-| `get_library_seat_status` | 중앙도서관의 층별 좌석 현황 (전체/이용 가능/예약/사용 불가) 과 구역별 분포를 반환한다. 읽기 전용; 예약은 Phase 4 의 별도 도구. | `floor`: 정수 (`-1` B1, `1`~`6` 1~6층) | `LibrarySeatStatusResponse` |
-| `search_library_book` | 중앙도서관 소장 도서를 키워드로 검색한다 (Pyxis JSON API, 익명 GET). 제목·저자·청구기호·소장 위치·대출 가능 여부를 반환한다. | `query`: 검색어 (1~64자), `page` (선택, 0부터), `size` (선택, 최대 20) | `LibraryBookSearchResponse` |
+| `get_today_meal` | 오늘 숭실대 캠퍼스 식당 메뉴 | `restaurant` (선택) | `MealResponse` |
+| `get_meal_by_date` | 지정 날짜 캠퍼스 식당 메뉴 | `date` (yyyy-MM-dd), `restaurant` (선택) | `MealResponse` |
+| `get_dorm_weekly_meal` | 레지던스홀 기숙사 이번 주 메뉴 | 없음 | `WeeklyMealResponse` |
+| `search_campus_facilities` | 캠퍼스 시설 검색 | `query` (선택) | `CampusFacilityListResponse` |
+| `get_library_seat_status` | 도서관 층별 좌석 현황 | `floor` (정수: -1~6) | `LibrarySeatStatusResponse` |
+| `search_library_book` | 도서관 소장 도서 검색 | `query`, `page`, `size` (선택) | `LibraryBookSearchResponse` |
 
-### 인증 필요 tool (u-SAINT 로그인)
+### 2b. MCP 인증 세션 관리 tool
 
-chat 세션에서만 동작. 외부 MCP client 에서는 context 미바인딩으로 `IllegalStateException` 반환.
+인증 흐름 제어용 tool. `mcp_session_id` 를 발급받고, provider 별 로그인 URL 을 얻고, 세션을 정리한다.
 
-| tool name | 설명 | 인자 | 응답 DTO |
-| --- | --- | --- | --- |
-| `get_my_schedule` | 로그인된 학생의 전 학기 시간표 (과목·요일·교시·강의실) 를 반환한다. | 없음 | `SaintScheduleResponse` |
-| `get_my_grades` | 로그인된 학생의 누적 GPA + 학기별 과목 수를 반환한다. **보안**: LLM 에는 과목 수와 `/grades` 링크만 전달 (점수·등급·교수명 차단). | 없음 | `GradesResponse` |
-
-### 인증 필요 tool (LMS 로그인)
-
-| tool name | 설명 | 인자 | 응답 DTO |
-| --- | --- | --- | --- |
-| `get_my_assignments` | 로그인된 학생의 현재 학기 미제출 과제·퀴즈 목록을 반환한다. 과목명·제목·유형·마감일 포함. | 없음 | `AssignmentsResponse` |
-
-### 인증 필요 tool (도서관 세션 연동)
-
-| tool name | 설명 | 인자 | 응답 DTO |
-| --- | --- | --- | --- |
-| `get_my_library_loans` | 연동된 사용자의 중앙도서관 대출 현황을 반환한다. 도서 제목·반납 기한·연장 가능 여부 포함. | 없음 | `LibraryLoansResponse` |
-
-학식 데이터는 `WeeklyMealCache` 가 애플리케이션 시작 시점과 매주 월요일 06:00 KST 에 일괄 적재하므로, `get_today_meal` / `get_meal_by_date` 호출은 일반적으로 캐시 히트로 응답한다.
-
-### 예정된 도구 (Phase 4)
-
-<!-- markdownlint-disable MD013 MD060 -->
-
-| tool name | 종류 | 설명 |
+| tool name | 설명 | 주요 인자 |
 | --- | --- | --- |
-| **`reserve_library_seat`** | **write (flagship)** | **도서관 사이트에 좌석 예약 POST 자동 수행** |
-| `cancel_library_seat_reservation` | write | 본인이 잡은 좌석 취소 |
-| `extend_library_seat` | write | 사용 시간 연장 |
+| `get_auth_status` | 현재 MCP 세션의 provider 연결 상태 조회 | `mcp_session_id` (선택) |
+| `start_auth` | 지정 provider 로그인 URL 생성. 없으면 새 세션 발급 | `provider` (SAINT/LMS/LIBRARY), `mcp_session_id` (선택) |
+| `logout_provider` | 특정 provider 연결 해제 | `provider`, `mcp_session_id` |
+| `logout_all` | MCP 세션 전체 삭제 | `mcp_session_id` |
 
-<!-- markdownlint-enable MD013 MD060 -->
+`start_auth` 응답 예시:
+```json
+{
+  "status": "LOGIN_STARTED",
+  "provider": "SAINT",
+  "mcpSessionId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "loginUrl": "https://api.ssuai.example/api/mcp/auth/saint/start?state=...",
+  "expiresAt": "2026-05-18T12:10:00Z",
+  "message": "Open loginUrl in a browser to complete login, then call private tools with mcpSessionId."
+}
+```
 
-`reserve_library_seat` 는 ssuAI 의 flagship deliverable 이다. write tool 의 confirmation / dry-run / audit log / 분산 lock 정책은 §8 참고.
+### 2c. Private tool (인증 필요)
 
-Tool 구현은 `com.ssuai.domain.mcp.tool` 아래에 있다. 각 tool 은 Connector 를 직접 호출하지 않고 도메인 Service 에만 위임한다. REST 와 MCP 가 같은 business logic 을 공유하게 하기 위한 규칙이다.
+`mcp_session_id` 를 인자로 받는다. 해당 provider 가 연결되어 있으면 `status: "OK"` 와 데이터를 반환하고, 아니면 `status: "AUTH_REQUIRED"` 와 로그인 URL 을 반환한다.
 
-`/api/chat` 의 LLM mode 도 같은 tool bean 을 재사용한다. 다만 chat 내부에서는 LLM prompt 비용을 줄이기 위해 tool 응답을 그대로 넣지 않고 compact JSON 으로 줄여서 전달한다.
+**AUTH_REQUIRED 응답 예시:**
+```json
+{
+  "status": "AUTH_REQUIRED",
+  "provider": "SAINT",
+  "mcpSessionId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "loginUrl": "https://api.ssuai.example/api/mcp/auth/saint/start?state=...",
+  "expiresAt": "2026-05-18T12:10:00Z",
+  "message": "Authentication required. Open loginUrl in a browser, then retry with the same mcpSessionId.",
+  "data": null
+}
+```
+
+**OK 응답 예시 (get_my_schedule):**
+```json
+{
+  "status": "OK",
+  "provider": null,
+  "mcpSessionId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "loginUrl": null,
+  "expiresAt": null,
+  "message": null,
+  "data": { ... }
+}
+```
+
+| tool name | 설명 | 필요 provider | 인자 |
+| --- | --- | --- | --- |
+| `get_my_schedule` | 전 학기 시간표 (과목·요일·교시·강의실) | SAINT | `mcp_session_id` |
+| `get_my_grades` | 누적 GPA + 학기별 과목 수 | SAINT | `mcp_session_id` |
+| `get_my_assignments` | 현재 학기 미제출 과제·퀴즈 목록 | LMS | `mcp_session_id` |
+| `get_my_library_loans` | 도서관 대출 현황 (반납 기한 포함) | LIBRARY | `mcp_session_id` |
+
+**보안 참고:** `mcp_session_id` 는 secret 취급. 로그에 남기지 말고 공유하지 말 것. 응답 JSON 에 studentId/loginId/principalKey 가 포함되지 않는다.
+
+### SAINT 로그인 흐름 (SAINT / LMS 공통)
+
+```
+1. start_auth("SAINT", null)
+   → mcpSessionId 발급 + loginUrl 반환
+2. 브라우저에서 loginUrl 열기 → SmartID 로그인
+3. 로그인 완료 페이지 확인
+4. get_my_schedule(mcpSessionId) 재호출 → status: "OK", data: {...}
+```
+
+SAINT 로그인 성공 시 LMS 도 best-effort 로 자동 연결된다.
+
+### 도서관 로그인 흐름
+
+```
+1. start_auth("LIBRARY", null)
+   → mcpSessionId 발급 + loginUrl 반환 (프론트 도서관 로그인 페이지)
+2. 브라우저에서 loginUrl 열기 → 학번/비밀번호 입력
+3. "로그인이 완료되었습니다." 확인
+4. get_my_library_loans(mcpSessionId) 재호출 → status: "OK", data: {...}
+```
 
 ## 3. 서버 띄우기
 Windows:
@@ -93,22 +136,12 @@ ssuai:
     lms-assignments: mock
 ```
 
-따라서 기본 실행에서는 외부 사이트를 hit 하지 않는다. local 에서 MCP 연결, tool 목록, DTO shape 만 확인하려면 mock connector 로 충분하다.
-
 서버가 정상 기동하면 다음 URL 이 살아 있어야 한다.
 
 ```text
 REST health: http://localhost:8080/actuator/health
 MCP SSE:     http://localhost:8080/sse
 ```
-
-SSE endpoint 는 연결이 열린 채 대기하는 것이 정상이다.
-
-```bash
-curl -N -D - http://localhost:8080/sse
-```
-
-정상 응답에는 `Content-Type: text/event-stream`, `event:endpoint`, `data:/mcp/message?sessionId=...` 가 보인다. 확인이 끝나면 `Ctrl+C` 로 종료한다.
 
 ## 4. MCP inspector 로 검증
 먼저 backend 를 켠다.
@@ -124,34 +157,31 @@ cd backend
 npx @modelcontextprotocol/inspector
 ```
 
-브라우저 UI 에서 다음 순서로 연결한다.
+브라우저 UI 에서:
 
 1. Transport 로 `SSE` 를 선택한다.
 2. URL 에 `http://localhost:8080/sse` 를 입력한다.
 3. Connect 를 누른다.
 4. `Tools` 탭에서 `List Tools` 를 누른다.
-5. tool 10개가 보이는지 확인한다.
+5. tool 14개가 보이는지 확인한다.
 
 보여야 하는 tool 이름:
 ```
-get_today_meal, get_meal_by_date, get_dorm_weekly_meal, search_campus_facilities,
-get_library_seat_status, search_library_book,
-get_my_schedule, get_my_grades, get_my_assignments, get_my_library_loans
+공개: get_today_meal, get_meal_by_date, get_dorm_weekly_meal, search_campus_facilities,
+      get_library_seat_status, search_library_book
+인증: get_auth_status, start_auth, logout_provider, logout_all
+private: get_my_schedule, get_my_grades, get_my_assignments, get_my_library_loans
 ```
 
-`get_meal_by_date` 호출 예시:
-
+`start_auth` 호출 예시:
 ```json
-{"date":"2026-05-07"}
+{"provider": "SAINT"}
 ```
 
-`get_library_seat_status` 호출 예시:
-
+`get_my_schedule` 호출 예시 (mcp_session_id 없으면 AUTH_REQUIRED):
 ```json
-{"floor":4}
+{"mcp_session_id": null}
 ```
-
-dev profile 에서는 mock 데이터가 반환되는 것이 정상이다.
 
 ## 5. Claude Desktop 등록
 설정 파일 위치:
@@ -160,10 +190,6 @@ dev profile 에서는 mock 데이터가 반환되는 것이 정상이다.
 | --- | --- |
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-
-설정 파일을 수정한 뒤에는 Claude Desktop 을 완전히 종료했다가 다시 시작한다.
-
-### 5.1 SSE 직접 지원 옵션
 
 ```json
 {
@@ -175,10 +201,9 @@ dev profile 에서는 mock 데이터가 반환되는 것이 정상이다.
 }
 ```
 
-### 5.2 `mcp-proxy` 어댑터 옵션
+설정 파일을 수정한 뒤에는 Claude Desktop 을 완전히 종료했다가 다시 시작한다.
 
-일부 Claude Desktop 버전은 STDIO MCP server 만 안정적으로 처리한다.
-
+`mcp-proxy` 어댑터가 필요한 경우:
 ```json
 {
   "mcpServers": {
@@ -202,9 +227,8 @@ dev profile 에서는 mock 데이터가 반환되는 것이 정상이다.
 }
 ```
 
-등록 후 Cursor 를 재시작하거나 MCP 설정 화면에서 server refresh 를 실행한다. `ssuai` 가 연결되고 tool 10개가 보이면 된다.
-
 ## 7. 트러블슈팅
+
 ### 포트 8080 이 이미 점유됨
 
 ```powershell
@@ -215,29 +239,35 @@ dev profile 에서는 mock 데이터가 반환되는 것이 정상이다.
 
 ### `Connection refused`
 
-backend 가 떠 있지 않은 상태일 가능성이 높다. `curl http://localhost:8080/actuator/health` 에서 `UP` 이 나오지 않으면 `backend/` 에서 `bootRun` 을 다시 실행한다.
+backend 가 떠 있지 않은 상태. `curl http://localhost:8080/actuator/health` 에서 `UP` 이 나오지 않으면 `backend/` 에서 `bootRun` 을 다시 실행한다.
 
 ### Tool 이 안 보임
 
 MCP inspector 의 `Tools` 탭에서 `List Tools` 를 다시 클릭한다. Claude Desktop 이나 Cursor 는 설정 저장 후 client 재시작이 필요할 수 있다.
 
-### 인증 필요 tool 이 에러를 반환함
+### Private tool 이 `AUTH_REQUIRED` 를 반환함
 
-`get_my_schedule`, `get_my_grades`, `get_my_assignments`, `get_my_library_loans` 는 외부 MCP client (Claude Desktop, Cursor) 에서 직접 호출 시 chat context 가 없어 항상 에러를 반환한다. 이 tool 들은 ssuAI chat (`/api/chat`) 을 통해서만 동작하도록 설계됐다.
+`mcp_session_id` 가 없거나 해당 provider 가 연결되지 않은 경우다.
+
+```
+1. start_auth("SAINT") 호출 → loginUrl 확인
+2. 브라우저에서 loginUrl 열어 로그인
+3. 반환된 mcpSessionId 로 private tool 재호출
+```
+
+`ssuai.auth.api-base-url` (= `SSUAI_AUTH_API_BASE_URL` 환경 변수) 가 설정되지 않으면 loginUrl 이 생성되지 않는다. 로컬 개발 시 `http://localhost:8080` 으로 설정한다.
 
 ## 8. 위험·write tool 정책 (향후)
-현재 노출된 10개 MCP tool 은 모두 read-only 이다. 학교 시스템 상태를 변경하지 않는다.
+현재 노출된 14개 MCP tool 은 모두 read-only 이다. 학교 시스템 상태를 변경하지 않는다.
 
 ### Phase 4 flagship — 도서관 좌석 자동 예약
 
-ssuAI 의 가장 중요한 write tool 은 **`reserve_library_seat`** 이다. 숭실대 도서관 사이트의 층별 좌석 예약 인터랙션을 자동화한다. 자세한 사용자 시나리오는 [`docs/vision.md`](vision.md) §3.4 참고.
+ssuAI 의 가장 중요한 write tool 은 **`reserve_library_seat`** 이다. 자세한 사용자 시나리오는 [`docs/vision.md`](vision.md) §3.4 참고.
 
 ### Write tool 공통 정책
-
-향후 예약, 제출, 설정 변경처럼 실제 학교 시스템 상태를 바꾸는 tool 을 추가할 때는 다음 원칙을 적용한다. 메커니즘은 [ADR 0015](adr/0015-action-tool-infrastructure.md) 가 source of truth.
 
 - 모든 write tool 은 **`prepare_X` + 공용 `confirm_action(pending_action_id)`** 두 개의 MCP tool 로 노출한다.
 - `prepare_X` 가 정확한 dry-run 문구를 반환하고 `action_audit` 에 `PREPARED` row 를 기록한다.
 - `confirm_action` 은 lookup → in-process lock → 실제 upstream 호출 → audit 상태 전이만 담당한다.
 - `pending_action_id` TTL 은 5분.
-- 비밀번호, session cookie, token, 학생 개인정보, upstream HTML 은 audit row 와 log 어디에도 안 들어간다 (`docs/security.md` §4 / §5).
+- 비밀번호, session cookie, token, 학생 개인정보, upstream HTML 은 audit row 와 log 어디에도 포함하지 않는다 (`docs/security.md` §4 / §5).

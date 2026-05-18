@@ -1,33 +1,55 @@
 package com.ssuai.domain.mcp.tool;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
+import com.ssuai.domain.auth.mcp.McpProviderType;
+import com.ssuai.domain.auth.mcp.dto.McpPrivateToolResponse;
 import com.ssuai.domain.library.dto.LibraryLoansResponse;
-import com.ssuai.domain.library.mcp.LibraryToolContext;
 import com.ssuai.domain.library.service.LibraryLoansService;
 
+/**
+ * MCP tool for the authenticated user's library loans (Task 18 Slice C).
+ *
+ * <p>Requires mcp_session_id with the LIBRARY provider linked via start_auth and
+ * the frontend library login page. The principalKey stored in McpAuthSession for
+ * LIBRARY is the opaque session key that LibraryLoansService uses to look up the
+ * Pyxis token — no student id is involved.
+ *
+ * <p>The chatbot path (LlmChatService) calls LibraryLoansService directly and does
+ * not invoke this method.
+ */
 @Component
 public class LibraryLoansMcpTool {
 
-    private final LibraryLoansService loansService;
+    private static final Logger log = LoggerFactory.getLogger(LibraryLoansMcpTool.class);
 
-    public LibraryLoansMcpTool(LibraryLoansService loansService) {
+    private final LibraryLoansService loansService;
+    private final McpAuthHelper authHelper;
+
+    public LibraryLoansMcpTool(LibraryLoansService loansService, McpAuthHelper authHelper) {
         this.loansService = loansService;
+        this.authHelper = authHelper;
     }
 
     @Tool(
             name = "get_my_library_loans",
-            description = "로그인된 사용자의 중앙도서관 대출 현황을 가져옵니다. "
-                    + "대출 도서 목록, 반납 기한, 연장 가능 여부가 포함됩니다. "
-                    + "인자를 받지 않습니다 — 도서관 세션이 연동된 chat 세션에서만 호출 가능합니다."
+            description = "Returns the authenticated user's current library loans including due dates. "
+                    + "Requires mcp_session_id with the LIBRARY provider linked via start_auth. "
+                    + "Returns AUTH_REQUIRED with a loginUrl if not authenticated — open loginUrl in a browser, then retry."
     )
-    public LibraryLoansResponse getMyLibraryLoans() {
-        String sessionKey = LibraryToolContext.currentSessionKey();
-        if (sessionKey == null || sessionKey.isBlank()) {
-            throw new IllegalStateException(
-                    "이 도구는 도서관 세션이 연동된 chat 세션에서만 호출 가능합니다.");
-        }
-        return loansService.getLoansForSession(sessionKey);
+    public McpPrivateToolResponse<LibraryLoansResponse> getMyLibraryLoans(String mcp_session_id) {
+        return authHelper.principalKey(mcp_session_id, McpProviderType.LIBRARY)
+                .map(sessionKey -> {
+                    log.debug("get_my_library_loans: fetching loans");
+                    LibraryLoansResponse data = loansService.getLoansForSession(sessionKey);
+                    return McpPrivateToolResponse.ok(mcp_session_id, data);
+                })
+                .orElseGet(() -> {
+                    log.debug("get_my_library_loans: LIBRARY not linked, returning AUTH_REQUIRED");
+                    return authHelper.buildAuthRequired(mcp_session_id, McpProviderType.LIBRARY);
+                });
     }
 }

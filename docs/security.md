@@ -141,6 +141,11 @@ every layer (Controller, Service, Connector, MCP tool).
   data — use a per-endpoint allowlist of safe fields instead.
 - Full HTML responses from authenticated school pages (they contain all of
   the above).
+- **MCP auth session**: `mcp_session_id`, `state` (one-time login token),
+  `sToken`, `sIdno`, `loginId`, provider `principalKey` (studentId or library key).
+  Log only `McpAuthSessionId.fingerprint()` (SHA-256 first 8 hex chars).
+- **MCP auth failures**: upstream exception `.getMessage()` must not appear
+  in user-facing HTML or JSON error messages. Use static safe strings.
 
 ### Practical mechanisms
 

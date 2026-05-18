@@ -1,6 +1,19 @@
 import { fetchJson } from "./client";
 import type { LibraryBookSearchResponse, LibraryFloorCode, LibraryLoansResponse, LibrarySeatStatusResponse } from "./types";
 
+export interface McpLibraryCallbackRequest {
+  state: string;
+  loginId: string;
+  password: string;
+}
+
+export function completeMcpLibraryAuth(req: McpLibraryCallbackRequest) {
+  return fetchJson<null>("/api/mcp/auth/library/callback", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
 export function getLibrarySeatStatus(floor: LibraryFloorCode) {
   return fetchJson<LibrarySeatStatusResponse>(`/api/library/seats?floor=${floor}`, {
     credentials: "include",
